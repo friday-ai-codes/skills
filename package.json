@@ -1,0 +1,49 @@
+{
+  "name": "@friday-ai-codes/skills",
+  "version": "0.0.1-alpha.0",
+  "description": "Friday AI agent skills. Agent-agnostic: install to Claude Code, Codex, Cursor, and 70+ agents via the open skills CLI or the bundled installer.",
+  "type": "module",
+  "bin": {
+    "friday-ai-skills": "./bin/friday-ai-skills.mjs"
+  },
+  "files": [
+    "bin/",
+    "skills/",
+    "README.md",
+    "LICENSE",
+    "package.json"
+  ],
+  "keywords": [
+    "agent-skills",
+    "skills",
+    "friday",
+    "friday-ai",
+    "mcp",
+    "claude-code",
+    "codex",
+    "cursor"
+  ],
+  "scripts": {
+    "list": "node bin/friday-ai-skills.mjs list",
+    "install:skills": "node bin/friday-ai-skills.mjs install",
+    "pack:dry-run": "npm pack --dry-run"
+  },
+  "dependencies": {
+    "skills": "^1.5.10"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/friday-ai-codes/skills.git"
+  },
+  "homepage": "https://github.com/friday-ai-codes/skills#readme",
+  "bugs": {
+    "url": "https://github.com/friday-ai-codes/skills/issues"
+  },
+  "license": "MIT"
+}
