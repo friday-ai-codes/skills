@@ -29,25 +29,31 @@ Published to npm as [`@friday-ai-codes/skills`](https://www.npmjs.com/package/@f
 
 ## Install
 
-### Any agent — one shot, no prompts
+### Guided (default in a terminal)
 
 ```bash
 npx @friday-ai-codes/skills
 ```
 
-Installs **all** skills to every detected agent (Claude Code, Codex, Cursor, ...), globally, non-interactively. Equivalent raw form:
+Launches a short wizard: pick the **scope** (current project or global) and the **target agents** (detected on your machine — nothing is pre-selected for you). All 12 skills are always installed together; there is no per-skill selection to click through.
+
+### Non-interactive (scripts / CI / you know what you want)
+
+Pass any targeting flag to skip the wizard:
+
+```bash
+npx @friday-ai-codes/skills install --project --agent cursor   # this project, Cursor only
+npx @friday-ai-codes/skills install --agent claude-code -g     # global, Claude Code only
+npx @friday-ai-codes/skills install --all-agents -g            # everything, everywhere
+npx @friday-ai-codes/skills install -y                         # old behavior: auto-detect all agents, global
+npx @friday-ai-codes/skills install --codex-bootstrap --agent codex  # plus ~/.codex/AGENTS.md bootstrap
+npx @friday-ai-codes/skills list                               # list bundled skills
+```
+
+Equivalent raw skills CLI form (always non-interactive):
 
 ```bash
 npx skills add friday-ai-codes/skills --skill '*' -g -y
-```
-
-Useful variants:
-
-```bash
-npx @friday-ai-codes/skills install --project            # current project instead of global
-npx @friday-ai-codes/skills install --agent claude-code  # one agent only
-npx @friday-ai-codes/skills install --codex-bootstrap    # also append using-friday to ~/.codex/AGENTS.md
-npx @friday-ai-codes/skills list                         # list bundled skills
 ```
 
 ### Claude Code — as a plugin (recommended)
