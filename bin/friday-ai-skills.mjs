@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -41,6 +42,7 @@ Options:
   --skill <name>     Install one skill; repeatable. Default: '*'
   --copy             Copy instead of symlink when the skills CLI supports both
   --interactive      Do not pass -y; let the skills CLI ask selection questions
+  --codex-bootstrap  Append the using-friday bootstrap section to ~/.codex/AGENTS.md (idempotent)
   --help, -h         Show this help
   --version, -v      Show package version
 
@@ -74,6 +76,7 @@ function normalizeInstallArgs(inputArgs) {
   let installGlobally = true;
   let interactive = false;
   let allAgents = false;
+  let wantsCodexBootstrap = false;
 
   for (let index = 0; index < inputArgs.length; index += 1) {
     const arg = inputArgs[index];
@@ -87,6 +90,10 @@ function normalizeInstallArgs(inputArgs) {
     }
     if (arg === '--all-agents') {
       allAgents = true;
+      continue;
+    }
+    if (arg === '--codex-bootstrap') {
+      wantsCodexBootstrap = true;
       continue;
     }
     args.push(arg);
@@ -107,10 +114,41 @@ function normalizeInstallArgs(inputArgs) {
     args.push('-y');
   }
 
-  return args;
+  return { args, wantsCodexBootstrap };
 }
 
-function runSkills(args) {
+const CODEX_BOOTSTRAP_BEGIN = '<!-- friday-ai-skills:begin -->';
+const CODEX_BOOTSTRAP_END = '<!-- friday-ai-skills:end -->';
+
+/**
+ * Codex has no SessionStart hook mechanism, so persist the using-friday
+ * bootstrap into ~/.codex/AGENTS.md instead. Idempotent via marker comments.
+ */
+function codexBootstrap() {
+  const agentsFile = join(homedir(), '.codex', 'AGENTS.md');
+  if (existsSync(agentsFile) && readFileSync(agentsFile, 'utf8').includes(CODEX_BOOTSTRAP_BEGIN)) {
+    console.log(`codex bootstrap: already present in ${agentsFile}`);
+    return;
+  }
+
+  const skillPath = join(packageRoot, 'skills', 'using-friday', 'SKILL.md');
+  const skillBody = readFileSync(skillPath, 'utf8').replace(/^---[\s\S]*?---\n/, '');
+  const section = `\n${CODEX_BOOTSTRAP_BEGIN}\n${skillBody.trim()}\n${CODEX_BOOTSTRAP_END}\n`;
+
+  mkdirSync(dirname(agentsFile), { recursive: true });
+  appendFileSync(agentsFile, section);
+  console.log(`codex bootstrap: appended using-friday to ${agentsFile}`);
+}
+
+function printNextSteps() {
+  console.log('');
+  console.log('Next steps:');
+  console.log('  1. Configure Friday access:   npx -y @friday-ai-codes/mcp init --base-url <url> --token <pat>');
+  console.log('  2. Register the MCP server:   npx -y @friday-ai-codes/mcp register');
+  console.log('  Or simply ask your agent to "set up Friday" — the friday-setup skill walks through it.');
+}
+
+function runSkills(args, { afterInstall = false } = {}) {
   const skillsCli = resolveSkillsCli();
   const command = skillsCli ? process.execPath : (process.platform === 'win32' ? 'npx.cmd' : 'npx');
   const commandArgs = skillsCli ? [skillsCli, ...args] : ['-y', 'skills@^1.5.10', ...args];
@@ -124,6 +162,9 @@ function runSkills(args) {
   if (result.error) {
     console.error(result.error.message);
     process.exit(1);
+  }
+  if (afterInstall && (result.status ?? 0) === 0) {
+    printNextSteps();
   }
   process.exit(result.status ?? 0);
 }
@@ -147,7 +188,11 @@ if (command === 'list' || command === 'ls') {
 }
 
 if (command === 'install' || command === 'add') {
-  runSkills(['add', packageRoot, ...normalizeInstallArgs(passthrough)]);
+  const { args, wantsCodexBootstrap } = normalizeInstallArgs(passthrough);
+  if (wantsCodexBootstrap) {
+    codexBootstrap();
+  }
+  runSkills(['add', packageRoot, ...args], { afterInstall: true });
 }
 
 console.error(`Unknown command: ${command}`);

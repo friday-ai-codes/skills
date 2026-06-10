@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "friday": {
+      "command": "npx",
+      "args": ["-y", "@friday-ai-codes/mcp"]
+    }
+  }
+}

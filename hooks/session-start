@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# SessionStart hook: 把 using-friday 元技能全文注入会话上下文。
+#
+# 平台输出格式（参照 obra/superpowers 的判别逻辑）：
+# - Cursor（CURSOR_PLUGIN_ROOT）          → {"additional_context": "..."}
+# - Claude Code（CLAUDE_PLUGIN_ROOT）     → {"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "..."}}
+# - 其他（Copilot CLI 等 SDK 标准）       → {"additionalContext": "..."}
+#
+# 用 printf 而非 heredoc，规避 bash 5.3+ 的 heredoc 挂起问题
+# （见 https://github.com/obra/superpowers/issues/571）。
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="${CURSOR_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$(dirname "$SCRIPT_DIR")}}"
+SKILL_FILE="$PLUGIN_ROOT/skills/using-friday/SKILL.md"
+
+if [ ! -f "$SKILL_FILE" ]; then
+  # 找不到元技能时静默退出，不阻塞会话启动
+  printf '{}\n'
+  exit 0
+fi
+
+skill_content="$(cat "$SKILL_FILE")"
+
+session_context="<using-friday-skill>
+You have Friday AI skills. The following is the full content of the 'using-friday' skill — your introduction to driving Friday AI. For all other friday-* skills, read them on demand per the routing table.
+
+${skill_content}
+</using-friday-skill>"
+
+# JSON 字符串转义（反斜杠必须最先处理）
+escaped="${session_context//\\/\\\\}"
+escaped="${escaped//\"/\\\"}"
+escaped="${escaped//$'\t'/\\t}"
+escaped="${escaped//$'\r'/\\r}"
+escaped="${escaped//$'\n'/\\n}"
+
+if [ -n "${CURSOR_PLUGIN_ROOT:-}" ]; then
+  printf '{\n  "additional_context": "%s"\n}\n' "$escaped"
+elif [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -z "${COPILOT_CLI:-}" ]; then
+  printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "SessionStart",\n    "additionalContext": "%s"\n  }\n}\n' "$escaped"
+else
+  printf '{\n  "additionalContext": "%s"\n}\n' "$escaped"
+fi
