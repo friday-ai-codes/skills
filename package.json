@@ -1,6 +1,6 @@
 {
   "name": "@friday-ai-codes/skills",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Friday AI agent skills. Agent-agnostic: install to Claude Code, Codex, Cursor, and 70+ agents via the open skills CLI or the bundled installer.",
   "type": "module",
   "bin": {
