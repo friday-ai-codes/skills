@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
@@ -80,6 +80,7 @@ function normalizeInstallArgs(inputArgs) {
   let interactive = false;
   let allAgents = false;
   let wantsCodexBootstrap = false;
+  const explicitAgents = [];
 
   for (let index = 0; index < inputArgs.length; index += 1) {
     const arg = inputArgs[index];
@@ -99,6 +100,11 @@ function normalizeInstallArgs(inputArgs) {
       wantsCodexBootstrap = true;
       continue;
     }
+    if (arg === '--agent' && inputArgs[index + 1]) {
+      explicitAgents.push(inputArgs[index + 1]);
+    } else if (arg.startsWith('--agent=')) {
+      explicitAgents.push(arg.slice('--agent='.length));
+    }
     args.push(arg);
   }
 
@@ -117,7 +123,14 @@ function normalizeInstallArgs(inputArgs) {
     args.push('-y');
   }
 
-  return { args, wantsCodexBootstrap };
+  // Cursor 项目级安装时写入 alwaysApply rule 兜底引导。显式指定 agent 时看
+  // 是否包含 cursor；未指定（auto-detect）时以本机装了 Cursor 为准。
+  const cursorTargeted = allAgents
+    || explicitAgents.some((agent) => agent === 'cursor' || agent === '*')
+    || (explicitAgents.length === 0 && existsSync(join(homedir(), '.cursor')));
+  const wantsCursorRule = !installGlobally && cursorTargeted;
+
+  return { args, wantsCodexBootstrap, wantsCursorRule };
 }
 
 /** Detect locally installed agents we can offer in the wizard. */
@@ -176,7 +189,7 @@ async function runWizard() {
   const ask = createPrompter(rl);
   try {
     console.log('');
-    console.log('Friday AI Skills — guided install (12 skills, always installed together)');
+    console.log('Friday AI Skills — guided install (5 skills, always installed together)');
     console.log('');
 
     console.log('Install scope:');
@@ -217,7 +230,7 @@ async function runWizard() {
       ? 'all detected agents'
       : agents.map((id) => detected.find((agent) => agent.id === id)?.label ?? id).join(', ');
     console.log('');
-    console.log(`Will install 12 skills -> ${agentLabel}, scope: ${scopeLabel}`);
+    console.log(`Will install 5 skills -> ${agentLabel}, scope: ${scopeLabel}`);
     const confirm = (await ask('Proceed? [Y/n]: ')).trim().toLowerCase();
     if (confirm === 'n' || confirm === 'no') {
       console.log('Aborted — nothing was installed.');
@@ -231,7 +244,8 @@ async function runWizard() {
     } else {
       for (const id of agents) args.push('--agent', id);
     }
-    return args;
+    const wantsCursorRule = project && (allAgents || agents.includes('cursor'));
+    return { args, wantsCursorRule };
   } finally {
     rl.close();
   }
@@ -239,6 +253,33 @@ async function runWizard() {
 
 const CODEX_BOOTSTRAP_BEGIN = '<!-- friday-ai-skills:begin -->';
 const CODEX_BOOTSTRAP_END = '<!-- friday-ai-skills:end -->';
+
+/**
+ * Cursor 项目级安装：写入 .cursor/rules/using-friday.mdc（alwaysApply），
+ * 让每次会话都先被引导到 using-friday 元技能。幂等：文件已存在则不动。
+ */
+function cursorRuleBootstrap() {
+  const ruleFile = join(process.cwd(), '.cursor', 'rules', 'using-friday.mdc');
+  if (existsSync(ruleFile)) {
+    console.log(`cursor rule: already present at ${ruleFile}`);
+    return;
+  }
+
+  const content = `---
+description: Friday AI skills 引导（安装器自动生成）
+alwaysApply: true
+---
+
+${CODEX_BOOTSTRAP_BEGIN}
+本项目安装了 Friday AI skills（位于 \`.agents/skills/friday-*\`）。
+只要当前任务有任何可能涉及 Friday AI——远端仓库编码、代码库分析、编码计划、MR/PR 自动化、飞书项目工作项——先完整阅读 \`.agents/skills/using-friday/SKILL.md\`，再按其中的技能路由表行动。哪怕只有 1% 的可能用得上，也要先读再动手。
+${CODEX_BOOTSTRAP_END}
+`;
+
+  mkdirSync(dirname(ruleFile), { recursive: true });
+  writeFileSync(ruleFile, content);
+  console.log(`cursor rule: wrote ${ruleFile} (alwaysApply bootstrap)`);
+}
 
 /**
  * Codex has no SessionStart hook mechanism, so persist the using-friday
@@ -268,7 +309,7 @@ function printNextSteps() {
   console.log('  Or simply ask your agent to "set up Friday" — the friday-setup skill walks through it.');
 }
 
-function runSkills(args, { afterInstall = false } = {}) {
+function runSkills(args, { afterInstall = false, cursorRule = false } = {}) {
   const skillsCli = resolveSkillsCli();
   const command = skillsCli ? process.execPath : (process.platform === 'win32' ? 'npx.cmd' : 'npx');
   const commandArgs = skillsCli ? [skillsCli, ...args] : ['-y', 'skills@^1.5.10', ...args];
@@ -283,8 +324,13 @@ function runSkills(args, { afterInstall = false } = {}) {
     console.error(result.error.message);
     process.exit(1);
   }
-  if (afterInstall && (result.status ?? 0) === 0) {
-    printNextSteps();
+  if ((result.status ?? 0) === 0) {
+    if (cursorRule) {
+      cursorRuleBootstrap();
+    }
+    if (afterInstall) {
+      printNextSteps();
+    }
   }
   process.exit(result.status ?? 0);
 }
@@ -314,17 +360,17 @@ if (command === 'install' || command === 'add') {
       && (process.env.FRIDAY_SKILLS_WIZARD === '1' || (process.stdin.isTTY && process.stdout.isTTY));
 
   if (wantsWizard) {
-    const wizardArgs = await runWizard();
+    const { args: wizardArgs, wantsCursorRule } = await runWizard();
     if (passthrough.includes('--codex-bootstrap')) {
       codexBootstrap();
     }
-    runSkills(['add', packageRoot, ...wizardArgs], { afterInstall: true });
+    runSkills(['add', packageRoot, ...wizardArgs], { afterInstall: true, cursorRule: wantsCursorRule });
   } else {
-    const { args, wantsCodexBootstrap } = normalizeInstallArgs(passthrough);
+    const { args, wantsCodexBootstrap, wantsCursorRule } = normalizeInstallArgs(passthrough);
     if (wantsCodexBootstrap) {
       codexBootstrap();
     }
-    runSkills(['add', packageRoot, ...args], { afterInstall: true });
+    runSkills(['add', packageRoot, ...args], { afterInstall: true, cursorRule: wantsCursorRule });
   }
 }
 

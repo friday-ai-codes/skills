@@ -1,6 +1,6 @@
 {
   "name": "friday-ai",
-  "version": "0.0.3",
+  "version": "0.1.0",
   "description": "Friday AI skills: requirement-to-MR automation through the Friday MCP server. Repository discovery, GraphRAG analysis, coding plans, containerized execution, MR creation, and Feishu work item workflows.",
   "author": {
     "name": "friday-ai-codes"

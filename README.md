@@ -6,7 +6,8 @@ Published to npm as [`@friday-ai-codes/skills`](https://www.npmjs.com/package/@f
 
 ## Design
 
-- **Atomic**: one skill per workflow stage, so agents auto-trigger the right one from its `description` — no manual `/slash` invocation needed.
+- **Intent-shaped**: one skill per user intent (code a repo / handle a Feishu work item), with pipeline stages as sections inside the skill — agents auto-trigger the right one from its `description`, no manual `/slash` invocation needed.
+- **Chinese-first**: skill bodies and descriptions are written in zh-CN, matching Friday's primary audience; skill names stay English slugs.
 - **MCP-first**: skills drive the [`@friday-ai-codes/mcp`](https://github.com/friday-ai-codes/mcp) stdio server; raw HTTP is documented as fallback only.
 - **Self-bootstrapping**: when the MCP server is missing or unauthenticated, the `friday-setup` skill walks the agent through install, Access Token creation, and IDE registration.
 
@@ -14,17 +15,10 @@ Published to npm as [`@friday-ai-codes/skills`](https://www.npmjs.com/package/@f
 
 | Skill | Use it for |
 | --- | --- |
-| `using-friday` | Meta skill: skill routing table + trace discipline (auto-injected by the plugin hook) |
+| `using-friday` | Meta skill: skill routing table + trace discipline (auto-injected by the plugin hook / Cursor rule) |
 | `friday-setup` | Install/configure/repair Friday access: `doctor` -> `init` -> `register` -> verify |
-| `friday-discover` | Route a requirement to the right indexed repository, check index health |
-| `friday-analyze` | GraphRAG evidence, architecture/risk/test analysis, `analysis_id` |
-| `friday-plan` | Create or revise a coding plan (`plan_id` / `version_id`) |
-| `friday-execute` | Execute a plan, poll, summarize branch, create MR |
-| `friday-auto` | Requirement -> MR end to end (full_auto) |
-| `friday-feishu-context` | Read a Feishu work item + linked docs (`context_id`) |
-| `friday-feishu-plan` | Technical plan + Feishu writeback (`technical_plan_id`, repo task matrix) |
-| `friday-feishu-execute` | Multi-repo task execution + PR/MR + result writeback |
-| `friday-feishu-auto` | Feishu work item end to end (context -> plan -> execute -> learn) |
+| `friday-code` | Everything on a remote indexed repository: discover -> analyze -> plan -> execute/MR, staged or end to end |
+| `friday-feishu` | Feishu work item loop: context -> technical plan -> multi-repo execution -> writeback, staged or end to end |
 | `friday-learn` | Record / search LearningCase memory |
 
 ## Install
@@ -35,7 +29,9 @@ Published to npm as [`@friday-ai-codes/skills`](https://www.npmjs.com/package/@f
 npx @friday-ai-codes/skills
 ```
 
-Launches a short wizard: pick the **scope** (current project or global) and the **target agents** (detected on your machine — nothing is pre-selected for you). All 12 skills are always installed together; there is no per-skill selection to click through.
+Launches a short wizard: pick the **scope** (current project or global) and the **target agents** (detected on your machine — nothing is pre-selected for you). All 5 skills are always installed together; there is no per-skill selection to click through.
+
+When Cursor is targeted with **project** scope, the installer also writes `.cursor/rules/using-friday.mdc` (`alwaysApply: true`) so every Cursor session is steered to the `using-friday` meta skill — Cursor's counterpart to the Claude Code SessionStart hook.
 
 ### Non-interactive (scripts / CI / you know what you want)
 
@@ -91,7 +87,7 @@ npx -y @friday-ai-codes/mcp register
 ## Verify locally
 
 ```bash
-npx skills add . --list        # should report exactly 12 skills
+npx skills add . --list        # should report exactly 5 skills
 npm run pack:dry-run           # inspect the npm tarball contents
 bash hooks/session-start | head -1   # valid JSON context injection
 ```
