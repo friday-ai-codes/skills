@@ -20,6 +20,7 @@ Published to npm as [`@friday-ai-codes/skills`](https://www.npmjs.com/package/@f
 | `friday-code` | Everything on a remote indexed repository: discover -> analyze -> plan -> execute/MR, staged or end to end |
 | `friday-feishu` | Feishu work item loop: context -> technical plan -> multi-repo execution -> writeback, staged or end to end |
 | `friday-learn` | Record / search LearningCase memory |
+| `friday-knowledge` | Delivery knowledge: similar requirements, entity timeline, related entities, as_of history |
 
 ## Install
 
@@ -29,7 +30,7 @@ Published to npm as [`@friday-ai-codes/skills`](https://www.npmjs.com/package/@f
 npx @friday-ai-codes/skills
 ```
 
-Launches a short wizard: pick the **scope** (current project or global) and the **target agents** (detected on your machine — nothing is pre-selected for you). All 5 skills are always installed together; there is no per-skill selection to click through.
+Launches a short wizard: pick the **scope** (current project or global) and the **target agents** (detected on your machine — nothing is pre-selected for you). All 6 skills are always installed together; there is no per-skill selection to click through.
 
 When Cursor is targeted with **project** scope, the installer also writes `.cursor/rules/using-friday.mdc` (`alwaysApply: true`) so every Cursor session is steered to the `using-friday` meta skill — Cursor's counterpart to the Claude Code SessionStart hook.
 
