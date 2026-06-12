@@ -1,13 +1,15 @@
 {
   "name": "@friday-ai-codes/skills",
-  "version": "0.1.0",
-  "description": "Friday AI agent skills. Agent-agnostic: install to Claude Code, Codex, Cursor, and 70+ agents via the open skills CLI or the bundled installer.",
+  "version": "0.2.0",
+  "description": "Friday AI agent skills 与中文安装向导。自带安装器：嗅探本机 Cursor / Claude Code / Codex 等 agent，把技能装进各 agent 原生技能目录，并接力完成 Friday MCP 配置。",
   "type": "module",
   "bin": {
-    "friday-ai-skills": "./bin/friday-ai-skills.mjs"
+    "friday-ai-skills": "./bin/friday-ai-skills.mjs",
+    "friday-skills": "./bin/friday-ai-skills.mjs"
   },
   "files": [
     "bin/",
+    "lib/",
     "skills/",
     ".claude-plugin/",
     ".mcp.json",
@@ -32,7 +34,8 @@
     "pack:dry-run": "npm pack --dry-run"
   },
   "dependencies": {
-    "skills": "^1.5.10"
+    "@clack/prompts": "^0.11.0",
+    "picocolors": "^1.1.1"
   },
   "engines": {
     "node": ">=20"

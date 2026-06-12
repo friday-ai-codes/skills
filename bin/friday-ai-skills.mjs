@@ -1,379 +1,349 @@
 #!/usr/bin/env node
 
+/**
+ * Friday Skills 安装器 —— 自带安装能力，不依赖第三方 skills CLI。
+ *
+ * - 交互模式（TTY 默认）：中文向导，嗅探本机 agent，选 scope 选目标，
+ *   装完接力 Friday MCP 配置（spawn `npx -y @friday-ai-codes/mcp setup`）。
+ * - 非交互模式（带定向参数 / 非 TTY / CI）：--agent / --all-agents /
+ *   --project / -g / -y，安装后打印下一步命令。
+ */
+
 import { spawnSync } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { createRequire } from 'node:module';
-import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 
-const require = createRequire(import.meta.url);
+import * as p from '@clack/prompts';
+
+import { AGENTS, agentById, detectAgents } from '../lib/agents.mjs';
+import {
+  bundledSkills,
+  injectContextBootstrap,
+  installSkillsForAgent,
+  mcpConfigured,
+} from '../lib/installer.mjs';
+import { banner, pc } from '../lib/ui.mjs';
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageRoot = resolve(__dirname, '..');
 const packageJson = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'));
 
+// ---------------------------------------------------------------------------
+// 帮助 / 版本
+// ---------------------------------------------------------------------------
+
 function usage() {
-  console.log(`
-Friday AI Skills
+  console.log(banner(packageJson.version));
+  console.log(`${pc.bold('用法')}
+  npx @friday-ai-codes/skills              ${pc.dim('# 交互式中文向导（推荐）')}
+  npx @friday-ai-codes/skills install [选项]
+  npx @friday-ai-codes/skills list         ${pc.dim('# 列出打包的技能')}
 
-Usage:
-  npx @friday-ai-codes/skills [install] [options]
-  npx @friday-ai-codes/skills list
-  npx @friday-ai-codes/skills --version
+${pc.bold('选项（非交互安装）')}
+  --agent <name>     目标 agent（${AGENTS.map((agent) => agent.id).join(' / ')}），可重复
+  --all-agents       安装到本机嗅探到的全部 agent
+  --project          装进当前项目（./.cursor/skills 等）
+  --global, -g       装进用户全局目录（~/.cursor/skills 等，默认）
+  --yes, -y          跳过向导：自动嗅探 agent，全局安装
+  --no-bootstrap     不向各 agent 指令文件（CLAUDE.md / AGENTS.md / GEMINI.md / Cursor rule）注入 friday 引导
+  --help, -h         显示本帮助
+  --version, -v      显示版本
 
-Run without options in a terminal to get a guided install: pick the scope
-(current project or global) and which agents to target. All bundled skills
-are always installed together — no per-skill selection.
+${pc.dim('默认会把 friday 入口引导注入各 agent 的指令文件（marker 幂等，可重复运行）：')}
+${pc.dim('Cursor → .cursor/rules/friday.mdc · Claude Code → CLAUDE.md · Codex / OpenCode → AGENTS.md · Gemini CLI → GEMINI.md')}
 
-Pass --agent / --all-agents / --project / --global / -y to skip the wizard
-(useful for scripts and CI).
+${pc.bold('示例')}
+  npx @friday-ai-codes/skills install --agent cursor --project
+  npx @friday-ai-codes/skills install --all-agents -g
+  npx @friday-ai-codes/skills install -y
 
-Examples:
-  npx @friday-ai-codes/skills                          # interactive wizard
-  npx @friday-ai-codes/skills install --agent cursor   # non-interactive, Cursor only
-  npx @friday-ai-codes/skills install --project --agent cursor
-  npx @friday-ai-codes/skills install --all-agents -g  # everything, everywhere
-  npx @friday-ai-codes/skills list
-
-Options:
-  --project          Install into the current project instead of the user (global) dir
-  --global, -g       Install to the user (global) dir
-  --agent <name>     Target a specific agent (e.g. claude-code, codex, cursor); repeatable
-  --all-agents       Install to every agent the skills CLI detects
-  --skill <name>     Install one skill; repeatable. Default: '*'
-  --copy             Copy instead of symlink when the skills CLI supports both
-  --yes, -y          Skip the wizard; auto-detect agents and install globally
-  --interactive      Do not pass -y; let the skills CLI ask selection questions
-  --codex-bootstrap  Append the using-friday bootstrap section to ~/.codex/AGENTS.md (idempotent)
-  --help, -h         Show this help
-  --version, -v      Show package version
-
-This wrapper delegates to the open 'skills' CLI (https://github.com/vercel-labs/skills),
-using this package directory as a local skill catalog. The same skills can also be
-installed directly with: npx skills add friday-ai-codes/skills
+${pc.dim('技能安装完成后，用一条命令完成 Friday 连接配置（交互式中文向导）：')}
+  ${pc.cyan('npx -y @friday-ai-codes/mcp setup')}
 `);
 }
 
-function resolveSkillsCli() {
-  try {
-    return require.resolve('skills/bin/cli.mjs');
-  } catch {
-    return null;
-  }
-}
+// ---------------------------------------------------------------------------
+// 参数解析
+// ---------------------------------------------------------------------------
 
-function hasArg(args, names) {
-  return args.some((arg) => names.includes(arg));
-}
-
-function hasValuedArg(args, names) {
-  return args.some((arg, index) => {
-    if (names.includes(arg)) return true;
-    return names.some((name) => arg.startsWith(`${name}=`)) || names.includes(args[index - 1]);
-  });
-}
-
-function normalizeInstallArgs(inputArgs) {
-  const args = [];
-  let installGlobally = true;
-  let interactive = false;
-  let allAgents = false;
-  let wantsCodexBootstrap = false;
-  const explicitAgents = [];
-
-  for (let index = 0; index < inputArgs.length; index += 1) {
-    const arg = inputArgs[index];
-    if (arg === '--project') {
-      installGlobally = false;
-      continue;
-    }
-    if (arg === '--interactive') {
-      interactive = true;
-      continue;
-    }
-    if (arg === '--all-agents') {
-      allAgents = true;
-      continue;
-    }
-    if (arg === '--codex-bootstrap') {
-      wantsCodexBootstrap = true;
-      continue;
-    }
-    if (arg === '--agent' && inputArgs[index + 1]) {
-      explicitAgents.push(inputArgs[index + 1]);
-    } else if (arg.startsWith('--agent=')) {
-      explicitAgents.push(arg.slice('--agent='.length));
-    }
-    args.push(arg);
-  }
-
-  if (installGlobally && !hasArg(args, ['--global', '-g'])) {
-    args.push('-g');
-  }
-  // Agent target: do not force one. When the user passes --all-agents, target
-  // every agent; otherwise let the skills CLI auto-detect installed agents.
-  if (allAgents) {
-    args.push('--agent', '*');
-  }
-  if (!hasValuedArg(args, ['--skill', '-s']) && !hasArg(args, ['--all'])) {
-    args.push('--skill', '*');
-  }
-  if (!interactive && !hasArg(args, ['--yes', '-y'])) {
-    args.push('-y');
-  }
-
-  // Cursor 项目级安装时写入 alwaysApply rule 兜底引导。显式指定 agent 时看
-  // 是否包含 cursor；未指定（auto-detect）时以本机装了 Cursor 为准。
-  const cursorTargeted = allAgents
-    || explicitAgents.some((agent) => agent === 'cursor' || agent === '*')
-    || (explicitAgents.length === 0 && existsSync(join(homedir(), '.cursor')));
-  const wantsCursorRule = !installGlobally && cursorTargeted;
-
-  return { args, wantsCodexBootstrap, wantsCursorRule };
-}
-
-/** Detect locally installed agents we can offer in the wizard. */
-function detectLocalAgents() {
-  const candidates = [
-    { id: 'cursor', label: 'Cursor', dir: join(homedir(), '.cursor') },
-    { id: 'claude-code', label: 'Claude Code', dir: join(homedir(), '.claude') },
-    { id: 'codex', label: 'Codex', dir: join(homedir(), '.codex') },
-    { id: 'gemini-cli', label: 'Gemini CLI', dir: join(homedir(), '.gemini') },
-    { id: 'opencode', label: 'OpenCode', dir: join(homedir(), '.opencode') },
-  ];
-  return candidates.filter((agent) => existsSync(agent.dir));
-}
-
-/**
- * Line-queue based prompt. Unlike rl.question, this never loses answers when
- * stdin is a fast pipe (all lines + EOF arrive before the prompts are asked).
- */
-function createPrompter(rl) {
-  const lines = [];
-  const waiters = [];
-  let closed = false;
-
-  rl.on('line', (line) => {
-    const waiter = waiters.shift();
-    if (waiter) waiter(line);
-    else lines.push(line);
-  });
-  rl.on('close', () => {
-    closed = true;
-    while (waiters.length > 0) waiters.shift()(null);
-  });
-
-  return async function ask(prompt) {
-    process.stdout.write(prompt);
-    const line = lines.length > 0
-      ? lines.shift()
-      : closed
-        ? null
-        : await new Promise((resolveLine) => waiters.push(resolveLine));
-    if (line === null) {
-      console.error('\nInput closed before the wizard finished. Aborting — nothing was installed.');
-      process.exit(1);
-    }
-    process.stdout.write('\n');
-    return line;
+function parseArgs(argv) {
+  const out = {
+    command: 'install',
+    agents: [],
+    allAgents: false,
+    project: false,
+    global: false,
+    yes: false,
+    bootstrap: true,
+    help: false,
+    version: false,
   };
+  const positional = [];
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === '--agent' && argv[i + 1]) out.agents.push(argv[++i]);
+    else if (arg.startsWith('--agent=')) out.agents.push(arg.slice('--agent='.length));
+    else if (arg === '--all-agents') out.allAgents = true;
+    else if (arg === '--project') out.project = true;
+    else if (arg === '--global' || arg === '-g') out.global = true;
+    else if (arg === '--yes' || arg === '-y') out.yes = true;
+    else if (arg === '--no-bootstrap') out.bootstrap = false;
+    else if (arg === '--codex-bootstrap') out.bootstrap = true; // 兼容旧参数（现已默认开启）
+    else if (arg === '--help' || arg === '-h') out.help = true;
+    else if (arg === '--version' || arg === '-v') out.version = true;
+    else if (!arg.startsWith('-')) positional.push(arg);
+  }
+  if (positional.length > 0) out.command = positional[0];
+  return out;
 }
 
-/**
- * Interactive install wizard. Skills are always all-in (no per-skill
- * selection); the user picks the scope and the target agents.
- */
-async function runWizard() {
-  const rl = createInterface({ input: process.stdin });
-  const ask = createPrompter(rl);
-  try {
-    console.log('');
-    console.log('Friday AI Skills — guided install (5 skills, always installed together)');
-    console.log('');
+// ---------------------------------------------------------------------------
+// list
+// ---------------------------------------------------------------------------
 
-    console.log('Install scope:');
-    console.log('  1) Current project (./)   [default]');
-    console.log('  2) Global (~)');
-    const scopeAnswer = (await ask('Scope [1]: ')).trim();
-    const project = scopeAnswer !== '2';
+function runList() {
+  console.log(banner(packageJson.version));
+  const skills = bundledSkills(packageRoot);
+  console.log(`${pc.bold(`打包技能（${skills.length} 个）`)}\n`);
+  for (const skill of skills) {
+    console.log(`  ${pc.cyan(pc.bold(`/${skill.name}`))}`);
+    console.log(`    ${pc.dim(skill.description)}\n`);
+  }
+  return 0;
+}
 
-    const detected = detectLocalAgents();
-    console.log('');
-    console.log('Target agents (detected on this machine):');
-    detected.forEach((agent, index) => {
-      console.log(`  ${index + 1}) ${agent.label}`);
-    });
-    console.log(`  a) All agents the skills CLI can detect (${detected.length ? 'broadest' : 'fallback'} — installs to every supported agent)`);
-    const agentAnswer = (await ask('Agents, comma-separated [1]: ')).trim().toLowerCase() || '1';
+// ---------------------------------------------------------------------------
+// 安装执行（交互 / 非交互共用）
+// ---------------------------------------------------------------------------
 
-    let agents = [];
-    let allAgents = false;
-    if (agentAnswer === 'a' || agentAnswer === 'all') {
-      allAgents = true;
-    } else {
-      const picked = new Set(
-        agentAnswer
-          .split(',')
-          .map((part) => Number.parseInt(part.trim(), 10))
-          .filter((n) => Number.isInteger(n) && n >= 1 && n <= detected.length),
-      );
-      agents = [...picked].map((n) => detected[n - 1].id);
-      if (agents.length === 0) {
-        console.error('No valid agent selected. Aborting — nothing was installed.');
-        process.exit(1);
+function performInstall({ agents, project, bootstrap }) {
+  const results = [];
+  for (const agent of agents) {
+    results.push(installSkillsForAgent(packageRoot, agent, { project }));
+  }
+  const extras = [];
+  if (bootstrap) {
+    for (const agent of agents) {
+      const boot = injectContextBootstrap(agent, { project });
+      if (boot.status === 'written') {
+        extras.push(`${agent.label} 引导：已注入 ${boot.path}`);
+      } else if (boot.status === 'already') {
+        extras.push(`${agent.label} 引导：已存在（${boot.path}）`);
       }
     }
-
-    const scopeLabel = project ? 'current project (./)' : 'global (~)';
-    const agentLabel = allAgents
-      ? 'all detected agents'
-      : agents.map((id) => detected.find((agent) => agent.id === id)?.label ?? id).join(', ');
-    console.log('');
-    console.log(`Will install 5 skills -> ${agentLabel}, scope: ${scopeLabel}`);
-    const confirm = (await ask('Proceed? [Y/n]: ')).trim().toLowerCase();
-    if (confirm === 'n' || confirm === 'no') {
-      console.log('Aborted — nothing was installed.');
-      process.exit(0);
+    // Cursor 全局文件规则支持不稳定，提示用户官方推荐路径
+    if (!project && agents.some((agent) => agent.id === 'cursor')) {
+      extras.push(
+        'Cursor 全局规则提示：~/.cursor/rules 偶有不生效（已知问题），更稳的是 Cursor Settings → Rules 手动加一条同样内容。',
+      );
     }
-
-    const args = ['--skill', '*', '-y'];
-    if (!project) args.push('-g');
-    if (allAgents) {
-      args.push('--agent', '*');
-    } else {
-      for (const id of agents) args.push('--agent', id);
-    }
-    const wantsCursorRule = project && (allAgents || agents.includes('cursor'));
-    return { args, wantsCursorRule };
-  } finally {
-    rl.close();
   }
+  return { results, extras };
 }
 
-const CODEX_BOOTSTRAP_BEGIN = '<!-- friday-ai-skills:begin -->';
-const CODEX_BOOTSTRAP_END = '<!-- friday-ai-skills:end -->';
+// ---------------------------------------------------------------------------
+// 交互式向导
+// ---------------------------------------------------------------------------
 
-/**
- * Cursor 项目级安装：写入 .cursor/rules/using-friday.mdc（alwaysApply），
- * 让每次会话都先被引导到 using-friday 元技能。幂等：文件已存在则不动。
- */
-function cursorRuleBootstrap() {
-  const ruleFile = join(process.cwd(), '.cursor', 'rules', 'using-friday.mdc');
-  if (existsSync(ruleFile)) {
-    console.log(`cursor rule: already present at ${ruleFile}`);
-    return;
-  }
+async function runWizard() {
+  console.log(banner(packageJson.version));
+  p.intro(pc.bgMagenta(pc.black(' Friday Skills 安装向导 ')));
 
-  const content = `---
-description: Friday AI skills 引导（安装器自动生成）
-alwaysApply: true
----
+  const skills = bundledSkills(packageRoot);
+  p.note(
+    skills.map((skill) => `${pc.cyan(`/${skill.name}`)}`).join('\n'),
+    `将安装 ${skills.length} 个技能（始终整组安装）`,
+  );
 
-${CODEX_BOOTSTRAP_BEGIN}
-本项目安装了 Friday AI skills（位于 \`.agents/skills/friday-*\`）。
-只要当前任务有任何可能涉及 Friday AI——远端仓库编码、代码库分析、编码计划、MR/PR 自动化、飞书项目工作项——先完整阅读 \`.agents/skills/using-friday/SKILL.md\`，再按其中的技能路由表行动。哪怕只有 1% 的可能用得上，也要先读再动手。
-${CODEX_BOOTSTRAP_END}
-`;
-
-  mkdirSync(dirname(ruleFile), { recursive: true });
-  writeFileSync(ruleFile, content);
-  console.log(`cursor rule: wrote ${ruleFile} (alwaysApply bootstrap)`);
-}
-
-/**
- * Codex has no SessionStart hook mechanism, so persist the using-friday
- * bootstrap into ~/.codex/AGENTS.md instead. Idempotent via marker comments.
- */
-function codexBootstrap() {
-  const agentsFile = join(homedir(), '.codex', 'AGENTS.md');
-  if (existsSync(agentsFile) && readFileSync(agentsFile, 'utf8').includes(CODEX_BOOTSTRAP_BEGIN)) {
-    console.log(`codex bootstrap: already present in ${agentsFile}`);
-    return;
-  }
-
-  const skillPath = join(packageRoot, 'skills', 'using-friday', 'SKILL.md');
-  const skillBody = readFileSync(skillPath, 'utf8').replace(/^---[\s\S]*?---\n/, '');
-  const section = `\n${CODEX_BOOTSTRAP_BEGIN}\n${skillBody.trim()}\n${CODEX_BOOTSTRAP_END}\n`;
-
-  mkdirSync(dirname(agentsFile), { recursive: true });
-  appendFileSync(agentsFile, section);
-  console.log(`codex bootstrap: appended using-friday to ${agentsFile}`);
-}
-
-function printNextSteps() {
-  console.log('');
-  console.log('Next steps:');
-  console.log('  1. Configure Friday access:   npx -y @friday-ai-codes/mcp init --base-url <url> --token <pat>');
-  console.log('  2. Register the MCP server:   npx -y @friday-ai-codes/mcp register');
-  console.log('  Or simply ask your agent to "set up Friday" — the friday-setup skill walks through it.');
-}
-
-function runSkills(args, { afterInstall = false, cursorRule = false } = {}) {
-  const skillsCli = resolveSkillsCli();
-  const command = skillsCli ? process.execPath : (process.platform === 'win32' ? 'npx.cmd' : 'npx');
-  const commandArgs = skillsCli ? [skillsCli, ...args] : ['-y', 'skills@^1.5.10', ...args];
-
-  const result = spawnSync(command, commandArgs, {
-    stdio: 'inherit',
-    cwd: process.cwd(),
-    env: process.env,
+  // 1) 安装范围
+  const scope = await p.select({
+    message: '装到哪里？',
+    options: [
+      { value: 'project', label: '当前项目（./）', hint: '随仓库提交，团队共享' },
+      { value: 'global', label: '用户全局（~）', hint: '本机所有项目可用' },
+    ],
   });
+  if (p.isCancel(scope)) return cancel();
+  const project = scope === 'project';
 
-  if (result.error) {
-    console.error(result.error.message);
-    process.exit(1);
-  }
-  if ((result.status ?? 0) === 0) {
-    if (cursorRule) {
-      cursorRuleBootstrap();
-    }
-    if (afterInstall) {
-      printNextSteps();
-    }
-  }
-  process.exit(result.status ?? 0);
-}
-
-const [rawCommand, ...rest] = process.argv.slice(2);
-const command = rawCommand && !rawCommand.startsWith('-') ? rawCommand : 'install';
-const passthrough = command === rawCommand ? rest : process.argv.slice(2);
-
-if (command === 'help' || hasArg(process.argv.slice(2), ['--help', '-h'])) {
-  usage();
-  process.exit(0);
-}
-
-if (command === 'version' || hasArg(process.argv.slice(2), ['--version', '-v'])) {
-  console.log(packageJson.version);
-  process.exit(0);
-}
-
-if (command === 'list' || command === 'ls') {
-  runSkills(['add', packageRoot, '--list', ...passthrough]);
-}
-
-if (command === 'install' || command === 'add') {
-  const decisiveFlags = ['--agent', '--all-agents', '--project', '--global', '-g', '-y', '--yes', '--interactive', '--skill', '-s'];
-  const wantsWizard
-    = !hasValuedArg(passthrough, decisiveFlags)
-      && (process.env.FRIDAY_SKILLS_WIZARD === '1' || (process.stdin.isTTY && process.stdout.isTTY));
-
-  if (wantsWizard) {
-    const { args: wizardArgs, wantsCursorRule } = await runWizard();
-    if (passthrough.includes('--codex-bootstrap')) {
-      codexBootstrap();
-    }
-    runSkills(['add', packageRoot, ...wizardArgs], { afterInstall: true, cursorRule: wantsCursorRule });
+  // 2) 目标 agent（嗅探到的默认勾选）
+  const detected = detectAgents();
+  const detectedIds = new Set(detected.map((agent) => agent.id));
+  if (detected.length > 0) {
+    p.log.info(`本机嗅探到：${detected.map((agent) => pc.green(agent.label)).join('、')}`);
   } else {
-    const { args, wantsCodexBootstrap, wantsCursorRule } = normalizeInstallArgs(passthrough);
-    if (wantsCodexBootstrap) {
-      codexBootstrap();
-    }
-    runSkills(['add', packageRoot, ...args], { afterInstall: true, cursorRule: wantsCursorRule });
+    p.log.warn('本机未嗅探到任何已知 agent 目录，请手动选择目标。');
   }
+  const agentIds = await p.multiselect({
+    message: '装给哪些 agent？（空格选择，回车确认）',
+    options: AGENTS.map((agent) => ({
+      value: agent.id,
+      label: agent.label,
+      hint: detectedIds.has(agent.id) ? '已检测到' : undefined,
+    })),
+    initialValues: detected.map((agent) => agent.id),
+    required: true,
+  });
+  if (p.isCancel(agentIds)) return cancel();
+  const agents = agentIds.map((id) => agentById(id)).filter(Boolean);
+
+  // 3) 指令文件引导注入（CLAUDE.md / AGENTS.md / GEMINI.md / Cursor rule，默认开启）
+  const bootstrapAnswer = await p.confirm({
+    message: `把 friday 入口引导写进各 agent 的指令文件？（${
+      project
+        ? 'CLAUDE.md / AGENTS.md / GEMINI.md / .cursor/rules'
+        : '~/.claude/CLAUDE.md / ~/.codex/AGENTS.md / ~/.gemini/GEMINI.md 等'
+    }，幂等，推荐）`,
+    initialValue: true,
+  });
+  if (p.isCancel(bootstrapAnswer)) return cancel();
+
+  // 4) 执行安装
+  const spinner = p.spinner();
+  spinner.start('正在安装技能…');
+  const { results, extras } = performInstall({ agents, project, bootstrap: bootstrapAnswer });
+  spinner.stop('技能安装完成');
+
+  for (const result of results) {
+    p.log.success(
+      `${pc.bold(result.agent.label)} → ${pc.dim(result.targetDir)}\n  ${result.installed
+        .map((name) => pc.cyan(`/${name}`))
+        .join('  ')}`,
+    );
+  }
+  for (const extra of extras) p.log.info(extra);
+
+  // 5) 接力 Friday MCP 配置
+  if (mcpConfigured()) {
+    p.log.success('Friday 连接已配置（~/.friday/config.json）。');
+    p.outro('全部就绪。重启 agent 会话后即可使用 /friday 。');
+    return 0;
+  }
+
+  const setupNow = await p.confirm({
+    message: '还差最后一步：配置 Friday 连接（服务地址 + 访问令牌）。现在就配？',
+  });
+  if (p.isCancel(setupNow) || !setupNow) {
+    p.outro(`随时可以补配：${pc.cyan('npx -y @friday-ai-codes/mcp setup')}`);
+    return 0;
+  }
+
+  p.log.step('交给 Friday MCP 配置向导…');
+  const result = spawnSync(
+    process.platform === 'win32' ? 'npx.cmd' : 'npx',
+    ['-y', '@friday-ai-codes/mcp', 'setup'],
+    { stdio: 'inherit', cwd: process.cwd(), env: process.env },
+  );
+  if ((result.status ?? 1) === 0) {
+    p.outro('全部就绪。重启 agent 会话后即可使用 /friday 。');
+    return 0;
+  }
+  p.outro(`MCP 配置未完成，可稍后重试：${pc.cyan('npx -y @friday-ai-codes/mcp setup')}`);
+  return result.status ?? 1;
 }
 
-console.error(`Unknown command: ${command}`);
-usage();
-process.exit(1);
+function cancel() {
+  p.cancel('已取消，未做任何更改。');
+  return 1;
+}
+
+// ---------------------------------------------------------------------------
+// 非交互安装
+// ---------------------------------------------------------------------------
+
+function runNonInteractive(options) {
+  console.log(banner(packageJson.version));
+  const project = options.project && !options.global;
+
+  let agents;
+  if (options.agents.length > 0) {
+    agents = [];
+    for (const id of options.agents) {
+      const agent = agentById(id);
+      if (!agent) {
+        console.error(
+          `${pc.red('✗')} 未知 agent: ${id}（可用: ${AGENTS.map((entry) => entry.id).join(' / ')}）`,
+        );
+        return 1;
+      }
+      agents.push(agent);
+    }
+  } else {
+    agents = detectAgents();
+    if (agents.length === 0) {
+      console.error(`${pc.red('✗')} 未嗅探到任何 agent，请用 --agent 指定目标。`);
+      return 1;
+    }
+  }
+
+  const { results, extras } = performInstall({
+    agents,
+    project,
+    bootstrap: options.bootstrap,
+  });
+  for (const result of results) {
+    console.log(`${pc.green('✓')} ${pc.bold(result.agent.label)} → ${pc.dim(result.targetDir)}`);
+    console.log(`    ${result.installed.map((name) => pc.cyan(`/${name}`)).join('  ')}`);
+  }
+  for (const extra of extras) console.log(`${pc.blue('ℹ')} ${extra}`);
+
+  console.log('');
+  if (mcpConfigured()) {
+    console.log(`${pc.green('✓')} Friday 连接已配置。重启 agent 会话后即可使用 /friday 。`);
+  } else {
+    console.log(`${pc.bold('下一步')}：配置 Friday 连接（交互式中文向导）`);
+    console.log(`  ${pc.cyan('npx -y @friday-ai-codes/mcp setup')}`);
+  }
+  return 0;
+}
+
+// ---------------------------------------------------------------------------
+// 入口
+// ---------------------------------------------------------------------------
+
+async function main() {
+  const options = parseArgs(process.argv.slice(2));
+
+  if (options.help || options.command === 'help') {
+    usage();
+    return 0;
+  }
+  if (options.version || options.command === 'version') {
+    console.log(packageJson.version);
+    return 0;
+  }
+  if (options.command === 'list' || options.command === 'ls') {
+    return runList();
+  }
+  if (options.command !== 'install' && options.command !== 'add') {
+    console.error(`未知命令: ${options.command}`);
+    usage();
+    return 1;
+  }
+
+  const hasTargeting =
+    options.agents.length > 0 ||
+    options.allAgents ||
+    options.project ||
+    options.global ||
+    options.yes;
+  const interactive =
+    !hasTargeting &&
+    (process.env.FRIDAY_SKILLS_WIZARD === '1' || (process.stdin.isTTY && process.stdout.isTTY));
+
+  if (interactive) {
+    return runWizard();
+  }
+  // --all-agents 等价于「不指定 agent，全部嗅探安装」
+  if (options.allAgents) options.agents = [];
+  return runNonInteractive(options);
+}
+
+main().then(
+  (code) => process.exit(code),
+  (error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  },
+);

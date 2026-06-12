@@ -26,4 +26,4 @@ X-Friday-Skill-Step: {workflow.step，可选}
 
 ## 错误
 
-错误格式为 `{ "error_code": "...", "detail": "..." }`。`authentication_failed` / `authentication_required` 表示 Access Token 需要创建或轮换——见 `friday-setup`。
+错误格式为 `{ "error_code": "...", "detail": "..." }`。`authentication_failed` / `authentication_required` 表示 Access Token 需要创建或轮换——引导用户运行 `npx -y @friday-ai-codes/mcp setup`。

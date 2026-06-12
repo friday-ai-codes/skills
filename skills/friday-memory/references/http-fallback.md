@@ -1,4 +1,4 @@
-# HTTP 兜底 — 交付知识工具
+# HTTP 兜底 — 记忆层工具
 
 `friday` MCP server 不可用时，每个工具都是普通 HTTP 端点：
 
@@ -10,6 +10,15 @@ X-Friday-Run-ID: {工作流首个调用返回的 run_id，首个调用可省略}
 ```
 
 ## 工具契约
+
+### 经验记忆（LearningCase）
+
+| 工具 | 路径 | 请求字段 | 响应（关键字段） |
+| --- | --- | --- | --- |
+| `create_learning_case` | `/api/mcp/tools/create_learning_case/` | `technical_plan_id`, `outcome`, `root_cause`, `solution_notes`, `tests` | `learning_case_id`, `run_id` |
+| `search_learning_cases` | `/api/mcp/tools/search_learning_cases/` | `query`, `work_item_type`, `repo_hints`, `file_hints`, `symbol_hints`, `limit` | `results`, `total`, `run_id` |
+
+### 交付知识（Knowledge）
 
 | 工具 | 路径 | 请求字段 | 响应（关键字段） |
 | --- | --- | --- | --- |
@@ -29,4 +38,4 @@ curl -sS -X POST "${FRIDAY_BASE_URL}/api/mcp/tools/search_delivery_knowledge/" \
 
 ## 错误
 
-错误格式为 `{ "error_code": "...", "detail": "..." }`。`authentication_failed` 表示 Access Token 无效——见 `friday-setup`。
+错误格式为 `{ "error_code": "...", "detail": "..." }`。`authentication_failed` 表示 Access Token 无效——引导用户运行 `npx -y @friday-ai-codes/mcp setup`。

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SessionStart hook: 把 using-friday 元技能全文注入会话上下文。
+# SessionStart hook: 把 friday 入口技能全文注入会话上下文。
 #
 # 平台输出格式（参照 obra/superpowers 的判别逻辑）：
 # - Cursor（CURSOR_PLUGIN_ROOT）          → {"additional_context": "..."}
@@ -13,21 +13,21 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="${CURSOR_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$(dirname "$SCRIPT_DIR")}}"
-SKILL_FILE="$PLUGIN_ROOT/skills/using-friday/SKILL.md"
+SKILL_FILE="$PLUGIN_ROOT/skills/friday/SKILL.md"
 
 if [ ! -f "$SKILL_FILE" ]; then
-  # 找不到元技能时静默退出，不阻塞会话启动
+  # 找不到入口技能时静默退出，不阻塞会话启动
   printf '{}\n'
   exit 0
 fi
 
 skill_content="$(cat "$SKILL_FILE")"
 
-session_context="<using-friday-skill>
-You have Friday AI skills. The following is the full content of the 'using-friday' skill — your introduction to driving Friday AI. For all other friday-* skills, read them on demand per the routing table.
+session_context="<friday-skill>
+You have Friday AI skills. The following is the full content of the 'friday' skill — your entry point for driving Friday AI. For all other friday-* skills, read them on demand per the routing table.
 
 ${skill_content}
-</using-friday-skill>"
+</friday-skill>"
 
 # JSON 字符串转义（反斜杠必须最先处理）
 escaped="${session_context//\\/\\\\}"
