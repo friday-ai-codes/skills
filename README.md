@@ -8,7 +8,7 @@ npm 包：[`@friday-ai-codes/skills`](https://www.npmjs.com/package/@friday-ai-c
 
 - **好记**：4 个 skill，全部 `friday` 开头、一个词收尾，按用户意图划分职责。
 - **中文优先**：skill 正文与描述全部 zh-CN，名字保留英文 slug。
-- **MCP 优先**：细粒度能力（22 个工具）全部由 [`@friday-ai-codes/mcp`](https://github.com/friday-ai-codes/mcp) stdio server 提供；skill 负责编排、护栏与轨迹纪律，HTTP 直调仅作兜底。
+- **MCP 优先**：细粒度能力（23 个工具）全部由 [`@friday-ai-codes/mcp`](https://github.com/friday-ai-codes/mcp) stdio server 提供；skill 负责编排、护栏与轨迹纪律，HTTP 直调仅作兜底。
 - **配置下沉 CLI**：安装、配置、连接、修复全部由 CLI 完成（`mcp setup` 交互式向导），不再需要 setup 技能。
 
 ## Skills（4 个）
