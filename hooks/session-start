@@ -26,6 +26,8 @@ skill_content="$(cat "$SKILL_FILE")"
 session_context="<friday-skill>
 You have Friday AI skills. The following is the full content of the 'friday' skill — your entry point for driving Friday AI. For all other friday-* skills, read them on demand per the routing table.
 
+主动触发提醒：只要任务跨到【另一侧仓库】就主动用 friday，不要等用户点名——典型场景是前后端打通：前端拿到接口要看后端实现、后端改接口要看前端哪里调用、或代码检索命中接口调用/路由定义/请求 URL 且指向另一侧仓库。先过下面的「决策门」，命中即按路由表行动。
+
 ${skill_content}
 </friday-skill>"
 
