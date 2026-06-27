@@ -66,6 +66,18 @@ npx -y @friday-ai-codes/mcp setup
 
 `friday-code` 和 `friday-feishu` 内部按阶段分节：用户只要某一个阶段（比如"只分析一下"），就停在那个阶段；用户给的是完整需求要结果，就一条龙跑到 MR。
 
+## 分支上下文环路（在仓库里编码时强制）
+
+在任何**仓库代码改动任务**上，按「先召回 → 再编码 → 后沉淀」走。**不写死项目，按当前 git 分支自动定位**——切分支、切项目都通用，无需为每个项目单独配置：
+
+1. **开工先召回**：用当前 git 分支名调 `lookup_project_by_branch(branch_name=<当前分支>)`（跨仓同名分支可带 `repository_id` 收窄）。
+   - `matched=true`：把返回的 `context`（项目记忆 / 需求 / 工件）当作本次编码的事实依据；记下 `project.id`，需要深挖再用 `search_project_context` / `grep_project` / `read_project_doc`。
+   - `matched=false`：结合 `candidates` 人工确认项目，缺上下文不要臆测实现。
+2. **再编码**：在已加载的项目上下文约束下设计与实现，不与既有记忆 / 需求矛盾。
+3. **收工后沉淀**：有价值的方案决策 / 经验教训调 `report_project_knowledge(branch_name=<当前分支>, content=…)`；新增 / 改动的 API 用 `report_project_state(branch_name=<当前分支>, apis=[…])` 回写。两者都**按分支自动定位项目、无需 project_id**；内容经服务端脱敏 + 质量门槛 + 审计回滚兜底。**绝不上报任何凭证 / 密钥 / token / 个人敏感信息。**
+
+非项目成员 / 未绑项目 / 分支无法唯一定位 → 工具自动 fail-soft 跳过，绝不阻断编码。这套环路也可经 IDE hooks 自动化（见各 agent 的 stop hook 资产）。
+
 ## Trace 纪律（所有技能通用）
 
 - 第一个成功的 Friday 工具响应会返回 `run_id`，整个工作流都要带着它。
