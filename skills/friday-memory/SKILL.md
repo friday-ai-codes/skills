@@ -38,7 +38,7 @@ Friday 的两层记忆，都通过 `friday` MCP server 工具访问：
 
 ### 检索（规划新工作前）
 
-1. `search_learning_cases`，用需求标题/描述构造 `query`；用 `work_item_type`、`repo_hints`、`file_hints`、`symbol_hints`、`limit` 收窄范围。
+1. `search_learning_cases` 现为**统一向量检索**（与 `search_delivery_knowledge` 同一向量库与融合排序）：用需求标题/描述构造 `query`；`work_item_type`、`repo_hints`、`file_hints`、`symbol_hints` 作为**查询增强与排序提权**（拼入查询文本 + 命中加权 rerank），不再是关键词收窄过滤——hints 给得准会提升相关结果排名，给错不会漏召回；`limit` 控制返回条数。
 2. 把相关结果作为 `similar_cases` 喂给 `friday-code` 阶段三或 `friday-feishu` 阶段二。
 
 ### 护栏
@@ -46,6 +46,7 @@ Friday 的两层记忆，都通过 `friday` MCP server 工具访问：
 - 诚实记录：`outcome` 反映实际发生的结果（success / partial / failed），不是预期结果。
 - LearningCase 创建失败不影响执行产出的有效性——修复报告的问题后重试即可。
 - "先检索再规划"成本极低、常常决定方向；任何非平凡需求都建议先跑一次检索。
+- 结果 `score` 为 0-1 向量融合分（越高越相关），只用于同一次检索内排序比较，不要跨检索设绝对阈值；检索依赖服务端向量库，暂时不可用时返回空 `results`（fail-soft），稍后重试即可。
 
 ## 交付知识 — Knowledge
 

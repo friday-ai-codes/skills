@@ -18,6 +18,7 @@ description: "当用户要 Friday 操作或追踪某个远端已索引仓库时�
 | "哪个仓库负责 X？" / "Friday 能操作这个仓库吗？" | 阶段一 |
 | 前端拿到接口要看后端实现 / 后端接口要看前端调用点（跨仓追接口） | 阶段一定位另一侧仓库 → 阶段二查实现/调用点 |
 | "分析一下仓库 Y 的架构 / X 是怎么实现的 / 改这个影响面多大" | 阶段二 |
+| "这段代码对应哪个需求 / 为什么这么改" | 阶段二（`reverse_lookup_requirements`） |
 | "给这个需求出个方案/计划" | 阶段三 |
 | "执行这个计划 / 建个 MR" | 阶段四 |
 | 给了具体需求，要的是结果（代码 + MR） | 一条龙模式 |
@@ -43,8 +44,9 @@ description: "当用户要 Friday 操作或追踪某个远端已索引仓库时�
 1. `search_rag_chunks`，用需求或分析焦点做 `query`（`repository_id`，可选 `branch` / `top_k` / `max_tokens`）。这是主力证据工具——混合语义 + 关键词 + 图谱检索。
 2. `grep_repository` 处理「穷举所有出现位置」类问题（字面量 / 符号引用 / 跳转路径枚举）：精确全量、确定性结果，语义检索保证不了全量时必须切换到它。支持正则、大小写开关、`paths` / `include_globs` / `exclude_globs` 过滤、最多 50 行上下文与 `max_tokens` 预算。推荐两步法：先 `output_mode="files_only"` 看命中分布，再 `output_mode="content"` + `context_lines` 抠关键上下文（可省掉大量 `get_repository_file` 往返）。跨仓问题（「哪些仓库在用 X」）传 `repository_ids` 数组或 `all_repositories=true`，结果按仓库分组。
 3. `find_related_chunks` 从重要命中扩展：`chunk_id` / `file_path` / `symbol_name` 三选一。证据指向值得追踪的入口时使用。
-4. `get_repository_file` 在 chunk 需要完整上下文时读取精确文件内容（支持行范围；优先 git 镜像全量读取，`source="git"` 时行号精确）。
-5. `analyze_repository`，把筛选后的证据作为 `context_chunks`、用户的关注点作为 `focus` 传入。返回 `analysis_id` 及架构摘要、关键模块、入口、风险、测试策略、阅读顺序。
+4. `reverse_lookup_requirements` ——证据→需求反查：已知代码位置（`repository_id` + `file_path`/`line` 或 `chunk_id`，可选 `branch`），反查它关联的需求（`related_work_items`）、文档（`related_documents`）与追溯路径（`paths`）。回答「这段代码是为哪个需求/方案改的」「改这里会影响哪些已交付需求」时用。
+5. `get_repository_file` 在 chunk 需要完整上下文时读取精确文件内容（支持行范围；优先 git 镜像全量读取，`source="git"` 时行号精确）。
+6. `analyze_repository`，把筛选后的证据作为 `context_chunks`、用户的关注点作为 `focus` 传入。返回 `analysis_id` 及架构摘要、关键模块、入口、风险、测试策略、阅读顺序。
 
 跨仓追接口（前后端打通）：
 
