@@ -1,7 +1,7 @@
 {
   "name": "friday-ai",
-  "version": "0.2.1",
-  "description": "Friday AI skills: requirement-to-MR automation through the Friday MCP server. 4 skills (friday / friday-code / friday-feishu / friday-memory) covering repository discovery, GraphRAG analysis, coding plans, containerized execution, MR creation, Feishu work item workflows, and delivery memory.",
+  "version": "0.4.0",
+  "description": "Friday AI skills: branch-aware project context recall plus requirement-to-MR automation through the Friday MCP server. 5 skills (friday / friday-dev / friday-code / friday-feishu / friday-memory) covering local branch context recall (progress / PRD / feature list / continue-where-you-left-off), repository discovery, GraphRAG analysis, coding plans, containerized execution, MR creation, Feishu work item workflows, and delivery memory. Hooks auto-inject project context per prompt and silently capture session learnings back to Friday.",
   "author": {
     "name": "friday-ai-codes"
   },
