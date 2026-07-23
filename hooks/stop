@@ -75,15 +75,16 @@ if not branch or branch == "HEAD":
     fail_soft()
 
 changes = "\n".join(git("-c", "core.quotepath=false", "diff", "--stat", "HEAD").splitlines()[-80:])
-recent = git("log", "-n", "5", "--pretty=format:- %s")
-if not changes and not recent:
+# 只有存在未提交的工作区改动才上报——「最近提交」单独存在不构成本次会话的产出，
+# 否则每个只读会话结束都会写一条重复的"最近提交"记忆（噪音，实测踩过）。
+if not changes:
     fail_soft()
 
+recent = git("log", "-n", "5", "--pretty=format:- %s")
 parts = [f"本次会话改动摘要（Friday stop hook 自动沉淀，分支 {branch}）："]
+parts += ["文件改动：", changes]
 if recent:
-    parts += ["最近提交：", recent]
-if changes:
-    parts += ["文件改动：", changes]
+    parts += ["最近提交（上下文参考）：", recent]
 content = "\n".join(parts)
 
 # ---- 本地防噪音：内容指纹去重 + 最小间隔 ----
