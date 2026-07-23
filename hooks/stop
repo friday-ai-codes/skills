@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+# Stop hook（Claude Code）：会话轮次结束时把改动摘要静默沉淀回 Friday 项目记忆。
+#
+# 通用版（区别于服务端 per-project 资产）：不写死 project_id——传 branch_name，
+# 服务端按分支自动定位唯一项目（无法定位则 fail-soft 跳过，不写、不报错）。
+#
+# 防噪音双保险：
+#   - 本地：内容指纹去重（同一改动摘要不重复上报）+ 300s 最小间隔；
+#   - 服务端：质量门槛（低质/重复不写）+ 脱敏不可绕过 + 审计可回滚。
+#
+# 凭证解析与 user-prompt-submit 一致；脚本只提交 git 改动统计与提交标题，
+# 绝不拼接/上报凭证、密钥、token、个人敏感信息。
+# fail-soft：任何失败静默 exit 0，绝不阻断编码。
+# 关闭开关：FRIDAY_HOOKS_DISABLED=1 或 FRIDAY_STOP_WRITEBACK=0。
+
+set -u
+
+[ "${FRIDAY_HOOKS_DISABLED:-0}" = "1" ] && exit 0
+[ "${FRIDAY_STOP_WRITEBACK:-1}" = "0" ] && exit 0
+command -v python3 >/dev/null 2>&1 || exit 0
+
+stdin_json="$(cat 2>/dev/null || true)"
+
+exec python3 - "$stdin_json" <<'PY'
+import hashlib
+import json
+import os
+import subprocess
+import sys
+import time
+import urllib.request
+
+MIN_REPORT_INTERVAL_SECONDS = 300
+REPORT_TIMEOUT_SECONDS = 10
+
+
+def fail_soft() -> "None":
+    sys.exit(0)
+
+
+try:
+    event = json.loads(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].strip() else {}
+except Exception:
+    event = {}
+if not isinstance(event, dict):
+    event = {}
+session_id = str(event.get("session_id") or "")
+cwd = str(event.get("cwd") or os.getcwd())
+
+base_url = os.environ.get("FRIDAY_BASE_URL") or os.environ.get("FRIDAY_API_URL") or ""
+token = os.environ.get("FRIDAY_ACCESS_TOKEN") or os.environ.get("FRIDAY_PAT") or ""
+if not base_url or not token:
+    try:
+        with open(os.path.expanduser("~/.friday/config.json"), encoding="utf-8") as fh:
+            cfg = json.load(fh)
+        base_url = base_url or str(cfg.get("baseUrl") or "")
+        token = token or str(cfg.get("accessToken") or "")
+    except Exception:
+        pass
+if not base_url or not token:
+    fail_soft()
+
+
+def git(*args: str) -> str:
+    try:
+        return subprocess.run(
+            ["git", "-C", cwd, *args], capture_output=True, text=True, timeout=5
+        ).stdout.strip()
+    except Exception:
+        return ""
+
+
+branch = git("rev-parse", "--abbrev-ref", "HEAD")
+if not branch or branch == "HEAD":
+    fail_soft()
+
+changes = "\n".join(git("-c", "core.quotepath=false", "diff", "--stat", "HEAD").splitlines()[-80:])
+recent = git("log", "-n", "5", "--pretty=format:- %s")
+if not changes and not recent:
+    fail_soft()
+
+parts = [f"本次会话改动摘要（Friday stop hook 自动沉淀，分支 {branch}）："]
+if recent:
+    parts += ["最近提交：", recent]
+if changes:
+    parts += ["文件改动：", changes]
+content = "\n".join(parts)
+
+# ---- 本地防噪音：内容指纹去重 + 最小间隔 ----
+cache_dir = os.path.join(
+    os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "friday-skills"
+)
+key = hashlib.sha256(f"{session_id}\n{branch}\n{base_url}".encode()).hexdigest()[:32]
+marker = os.path.join(cache_dir, f"stop-{key}")
+digest = hashlib.sha256(content.encode()).hexdigest()
+try:
+    st = os.stat(marker)
+    with open(marker, encoding="utf-8") as fh:
+        last_digest = fh.read().strip()
+    if last_digest == digest:
+        fail_soft()
+    if time.time() - st.st_mtime < MIN_REPORT_INTERVAL_SECONDS:
+        fail_soft()
+except OSError:
+    pass
+
+payload = json.dumps({
+    "branch_name": branch,
+    "content": content,
+    "writeback_mode": "active",
+    "target": "memory",
+}).encode()
+req = urllib.request.Request(
+    f"{base_url.rstrip('/')}/api/mcp/tools/report_project_knowledge/",
+    data=payload,
+    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+    method="POST",
+)
+try:
+    urllib.request.urlopen(req, timeout=REPORT_TIMEOUT_SECONDS).read()
+except Exception:
+    fail_soft()
+
+try:
+    os.makedirs(cache_dir, exist_ok=True)
+    with open(marker, "w", encoding="utf-8") as fh:
+        fh.write(digest)
+except Exception:
+    pass
+sys.exit(0)
+PY

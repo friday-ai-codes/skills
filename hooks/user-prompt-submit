@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+# UserPromptSubmit hook（Claude Code）：按当前 git 分支自动召回 Friday 项目上下文并注入对话。
+#
+# 通用版（区别于服务端 per-project 资产）：不写死 project_id——每次动态取当前分支，
+# 调 lookup_project_by_branch 反查项目并召回需求/工件/记忆，注入 additionalContext。
+#
+# 凭证解析顺序（与 @friday-ai-codes/mcp 一致，绝不回显）：
+#   1. env FRIDAY_BASE_URL + FRIDAY_ACCESS_TOKEN
+#   2. env FRIDAY_API_URL + FRIDAY_PAT（兼容服务端 ide-hook 资产的变量名）
+#   3. ~/.friday/config.json（mcp setup 写入）
+#
+# 缓存：~/.cache/friday-skills/ 下按 (session_id, branch, baseUrl) 记忆——
+#   同会话同分支 10 分钟内只调一次、只注入一次（含未命中负缓存），避免拖慢每条消息
+#   与重复注入撑爆上下文；切分支立即重新召回。
+#
+# fail-soft：无凭证 / 非 git 仓库 / 接口失败 / 未命中 / python3 缺失 → 静默 exit 0，
+# 绝不阻断编码。设 FRIDAY_HOOKS_DISABLED=1 可整体关闭。
+
+set -u
+
+[ "${FRIDAY_HOOKS_DISABLED:-0}" = "1" ] && exit 0
+command -v python3 >/dev/null 2>&1 || exit 0
+command -v curl >/dev/null 2>&1 || exit 0
+
+stdin_json="$(cat 2>/dev/null || true)"
+
+exec python3 - "$stdin_json" <<'PY'
+import hashlib
+import json
+import os
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
+
+CACHE_TTL_SECONDS = 600
+LOOKUP_TIMEOUT_SECONDS = 8
+
+
+def fail_soft() -> "None":
+    sys.exit(0)
+
+
+# ---- 入参（Claude Code 经 stdin 传 hook 事件 JSON）----
+try:
+    event = json.loads(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].strip() else {}
+except Exception:
+    event = {}
+if not isinstance(event, dict):
+    event = {}
+session_id = str(event.get("session_id") or "")
+cwd = str(event.get("cwd") or os.getcwd())
+
+# ---- 凭证（绝不打印）----
+base_url = os.environ.get("FRIDAY_BASE_URL") or os.environ.get("FRIDAY_API_URL") or ""
+token = os.environ.get("FRIDAY_ACCESS_TOKEN") or os.environ.get("FRIDAY_PAT") or ""
+if not base_url or not token:
+    try:
+        with open(os.path.expanduser("~/.friday/config.json"), encoding="utf-8") as fh:
+            cfg = json.load(fh)
+        base_url = base_url or str(cfg.get("baseUrl") or "")
+        token = token or str(cfg.get("accessToken") or "")
+    except Exception:
+        pass
+if not base_url or not token:
+    fail_soft()
+
+# ---- 当前分支 ----
+try:
+    branch = subprocess.run(
+        ["git", "-C", cwd, "rev-parse", "--abbrev-ref", "HEAD"],
+        capture_output=True, text=True, timeout=5,
+    ).stdout.strip()
+except Exception:
+    branch = ""
+if not branch or branch == "HEAD":
+    fail_soft()
+
+# ---- 缓存（同会话同分支 TTL 内只召回/注入一次，含负缓存）----
+cache_dir = os.path.join(
+    os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "friday-skills"
+)
+key = hashlib.sha256(f"{session_id}\n{branch}\n{base_url}".encode()).hexdigest()[:32]
+cache_file = os.path.join(cache_dir, f"ctx-{key}")
+try:
+    if time.time() - os.stat(cache_file).st_mtime < CACHE_TTL_SECONDS:
+        fail_soft()
+except OSError:
+    pass
+
+
+def touch_cache() -> None:
+    try:
+        os.makedirs(cache_dir, exist_ok=True)
+        with open(cache_file, "w", encoding="utf-8") as fh:
+            fh.write("1")
+    except Exception:
+        pass
+
+
+# ---- lookup_project_by_branch ----
+payload = json.dumps({"branch_name": branch}).encode()
+req = urllib.request.Request(
+    f"{base_url.rstrip('/')}/api/mcp/tools/lookup_project_by_branch/",
+    data=payload,
+    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+    method="POST",
+)
+try:
+    with urllib.request.urlopen(req, timeout=LOOKUP_TIMEOUT_SECONDS) as resp:
+        data = json.loads(resp.read().decode("utf-8", errors="replace"))
+except Exception:
+    fail_soft()
+if not isinstance(data, dict):
+    touch_cache()
+    fail_soft()
+
+# ---- 组装注入内容 ----
+lines: list[str] = []
+context = str(data.get("context") or "")
+if data.get("matched") and context:
+    proj = data.get("project") or {}
+    name = proj.get("name") if isinstance(proj, dict) else ""
+    lines.append("# Friday 项目上下文（按当前分支自动召回）")
+    if name:
+        lines.append(f"当前分支 `{branch}` 关联 Friday 项目：{name}")
+    lines.append(
+        "以下为该项目的需求/工件/记忆打包上下文，作为本次开发的事实依据；"
+        "深挖用 friday MCP 工具（search_project_context / grep_project / read_project_doc），"
+        "收工沉淀用 report_project_knowledge / report_project_state（传 branch_name）。"
+    )
+    lines.append("")
+    lines.append(context)
+else:
+    candidates = data.get("candidates") or []
+    names = [
+        str(c.get("name", "")) for c in candidates
+        if isinstance(c, dict) and c.get("name")
+    ]
+    if names:
+        lines.append("# Friday 提示")
+        lines.append(
+            f"当前分支 `{branch}` 未唯一命中 Friday 项目，候选：" + "、".join(names)
+            + "。回答项目进度/需求类问题前，先用 lookup_project_by_branch 与用户确认项目。"
+        )
+
+touch_cache()
+if not lines:
+    fail_soft()
+
+print(json.dumps({
+    "hookSpecificOutput": {
+        "hookEventName": "UserPromptSubmit",
+        "additionalContext": "\n".join(lines),
+    },
+}, ensure_ascii=False))
+PY
