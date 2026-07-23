@@ -37,6 +37,8 @@ description: "本地开发上下文面：在本地仓库的分支上工作、需
 - `search_project_context(project_id, query, top_k)` — 项目交付上下文语义召回（需求 / 工件 / 记忆实体）。
 - `grep_project(project_id, query)` — 关键词精确匹配（与语义召回互补，找确定名词用这个）。
 
+**深挖止损**：项目刚建或内容少时读半常为空——连续 2 次深挖（不同工具/不同 query）都为空就**停止深挖**，直接基于 `lookup` 返回的 `context` + 本地 git 历史回答，并说明「Friday 侧该项目记录还较少」。不要反复换 query 轰炸检索。
+
 ## 收工沉淀（有实际改动 / 有价值结论时）
 
 - 方案决策 / 经验教训：`report_project_knowledge(branch_name=<当前分支>, content=<提炼后的沉淀>)`。
