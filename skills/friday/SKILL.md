@@ -10,7 +10,7 @@ Friday AI 把需求变成可追溯的合并请求（MR/PR）：仓库发现、Gr
 本技能有两种用法：
 
 1. **路由模式**：按下面的技能路由表找到对应技能，读它，照做。
-2. **直通模式**：用户直接把一个需求丢给 `/friday`（"帮我把 X 做了"），你来判定它属于哪条流水线——问本地分支的项目进度/继续开发走 `friday-dev`，给了成批功能点要技术方案走 `friday-solution`，涉及飞书工作项走 `friday-feishu`，纯仓库需求走 `friday-code`，查历史走 `friday-memory`——然后读对应技能一条龙跑完。
+2. **直通模式**：用户直接把一个需求丢给 `/friday`（"帮我把 X 做了"），你来判定它属于哪条流水线——问本地分支的项目进度/继续开发走 `friday-dev`，给了 feature list / PRD 只要落点矩阵走 `friday-routing`，给了成批功能点要完整技术方案走 `friday-solution`，涉及飞书工作项走 `friday-feishu`，纯仓库需求走 `friday-code`，查历史走 `friday-memory`——然后读对应技能一条龙跑完。
 
 ## 决策门（动手前先过这几问）
 
@@ -22,6 +22,7 @@ Friday AI 把需求变成可追溯的合并请求（MR/PR）：仓库发现、Gr
    - 在远端 / 其他仓库 / 未 checkout / 不确定 → 命中 Friday，进路由表。
 3. **是不是跨仓库追接口？**（见下「前后端打通」）→ 命中 Friday。
 4. **终点是编码计划 / MR / PR / 飞书方案回写？** → 命中 Friday。
+4.4. **用户给了 feature list / PRD，只想知道这批功能点该落到哪些仓库、仓库里的哪个位置、是新增还是改造？** → 命中 Friday，走 `friday-routing`（出路由与落点判定矩阵）。与 4.5 的区别：要**矩阵**（落点判定这一半）走 routing，要**完整方案**（含分仓方案与伪代码）走 solution。
 4.5. **用户给了一批功能点（feature list / 需求清单）要技术方案，或明确说要「创建 / 生成技术方案」？** → 命中 Friday，走 `friday-solution`。
 5. **需要跨多仓检索或历史交付**（哪些仓库用了 X、相似需求、版本时间线、需求→方案→MR 链）→ 命中 Friday。
 
@@ -62,6 +63,7 @@ npx -y @friday-ai-codes/mcp setup
 | 场景 | 技能 |
 | --- | --- |
 | 本地分支上的项目上下文：开发进度、继续开发、现有问题、PRD/feature list/技术方案召回、代码反查需求、编码开工先召回 | `friday-dev` |
+| feature list / PRD → 仓库路由与落点判定矩阵（目标仓库·落点文件·新增/改造·证据·置信度） | `friday-routing` |
 | 由 feature list 生成技术方案：判定功能点新增/改造、确认关联仓库、出分仓+整体方案（含落点与伪代码） | `friday-solution` |
 | 对远端仓库做任何事：找仓库、分析架构/风险、生成编码计划、执行并建 MR，或一条龙全自动 | `friday-code` |
 | 飞书项目工作项：读上下文、生成技术方案、多仓执行、结果回写，或一条龙全自动 | `friday-feishu` |

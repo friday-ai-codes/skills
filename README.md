@@ -6,17 +6,19 @@ npm 包：[`@friday-ai-codes/skills`](https://www.npmjs.com/package/@friday-ai-c
 
 ## 设计
 
-- **好记**：5 个 skill，全部 `friday` 开头、一个词收尾，按用户意图划分职责。
+- **好记**：7 个 skill，全部 `friday` 开头、一个词收尾，按用户意图划分职责。
 - **中文优先**：skill 正文与描述全部 zh-CN，名字保留英文 slug。
 - **MCP 优先**：细粒度能力（30 个工具）全部由 [`@friday-ai-codes/mcp`](https://github.com/friday-ai-codes/mcp) stdio server 提供；skill 负责编排、护栏与轨迹纪律，HTTP 直调仅作兜底。
 - **配置下沉 CLI**：安装、配置、连接、修复全部由 CLI 完成（`mcp setup` 交互式向导），不再需要 setup 技能。
 
-## Skills（5 个）
+## Skills（7 个）
 
 | Skill | 用途 |
 | --- | --- |
 | `friday` | 总入口：技能路由表 + 轨迹纪律 + 环境未就绪指引；也可直接把任意需求交给它一条龙跑完（hook / Cursor rule 自动注入） |
 | `friday-dev` | 本地开发上下文面：在本地分支上问「开发到哪一步了 / 继续开发 / 现在有什么问题 / PRD·feature list」时，按当前分支召回 Friday 项目上下文；编码开工先召回、收工沉淀回写 |
+| `friday-routing` | 由 feature list / PRD 出仓库路由与落点判定矩阵：目标仓库（含 monorepo 子应用）→ 落点文件 → 新增/改造 → 证据 → 置信度；判不准主动带选项批量问，不猜 |
+| `friday-solution` | 由 feature list 出技术方案：判定功能点新增 / 改造 → 确认关联仓库 → 分仓 + 整体方案（含落点文件与伪代码）。关联仓库必须经用户确认 |
 | `friday-code` | 远端已索引仓库：找仓库 → 分析 → 计划 → 执行/MR，可分阶段也可一条龙 |
 | `friday-feishu` | 飞书工作项闭环：读上下文 → 技术方案 → 多仓执行 → 结果回写，可分阶段也可一条龙 |
 | `friday-memory` | Friday 的记忆层：LearningCase 经验记录/检索 + 交付知识检索（相似需求、版本时间线、关联链、as_of） |
@@ -39,7 +41,7 @@ npx -y @friday-ai-codes/mcp setup
 npx @friday-ai-codes/skills
 ```
 
-向导会：展示渐变 banner → 选择安装范围（当前项目 / 全局）→ 自动嗅探本机 agent（Cursor / Claude Code / Codex / Gemini CLI / OpenCode）并默认勾选 → 把 5 个技能拷进各 agent 原生技能目录 → 检测 MCP 配置，未配置时直接接力拉起 `mcp setup`。
+向导会：展示渐变 banner → 选择安装范围（当前项目 / 全局）→ 自动嗅探本机 agent（Cursor / Claude Code / Codex / Gemini CLI / OpenCode）并默认勾选 → 把 7 个技能拷进各 agent 原生技能目录 → 检测 MCP 配置，未配置时直接接力拉起 `mcp setup`。
 
 ### 非交互（脚本 / CI）
 
@@ -88,7 +90,7 @@ npx skills add friday-ai-codes/skills --skill '*' -g -y
 ## 本地验证
 
 ```bash
-node bin/friday-ai-skills.mjs list        # 应列出 5 个技能
+node bin/friday-ai-skills.mjs list        # 应列出 7 个技能
 npm run pack:dry-run                       # 检查 npm tarball 内容
 bash hooks/session-start | head -1         # 合法 JSON 上下文注入
 ```

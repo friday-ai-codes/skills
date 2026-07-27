@@ -109,9 +109,12 @@ get_feature_tech_plan(session_id=...)
 | 情况 | 去哪 |
 | --- | --- |
 | 成批功能点 / feature list → 技术方案 | 本技能 |
+| 只要仓库路由与落点判定矩阵，不要完整方案 | `friday-routing` |
 | 单个需求 → 编码计划 → 执行 → MR | `friday-code` |
 | 飞书工作项 → 技术方案 → 多仓 MR | `friday-feishu` |
 | 想知道项目现在做到哪、需求在哪 | `friday-dev` |
+
+`friday-routing` 是本技能的**上游**：它逐功能点出「目标仓库 → 落点文件 → 新增/改造 → 证据 → 置信度」的矩阵，可以直接作为本技能第二步确认关联仓库时的输入依据。
 
 方案确认完要**接着编码**的，拿 `plan.execution_plan` 里的每仓任务转 `friday-code` 的执行段。
 
