@@ -24,6 +24,24 @@ npm 包：[`@friday-ai-codes/skills`](https://www.npmjs.com/package/@friday-ai-c
 | `friday-memory` | Friday 的记忆层：LearningCase 经验记录/检索 + 交付知识检索（相似需求、版本时间线、关联链、as_of） |
 | `friday-blueprint-stages` | 技术方案编排环节单跑：需求规格 / 三分量仓库路由 / 沙箱仓库调研三个环节可基于上游产物单独触发（dry-run 提案），仓库集写回项目关联必须经用户显式裁决 |
 
+## Subagents（2 个）
+
+Skill 教主 agent「怎么做」，subagent 让宿主把整段流程**委托出去**——本地 subagent 只当薄壳司机（发起 → 转达澄清 → 轮询取件），重活全在 Friday 服务端编排，主对话上下文不被轮询与海量中间结果污染。安装器会把它们装进 Cursor / Claude Code 的原生 agents 目录（其余 agent 无 subagent 机制，自动跳过，由 skill 正文引导主 agent 直接驱动）：
+
+| Subagent | 职责 | 关键约束 |
+| --- | --- | --- |
+| `friday-plan` | 技术方案编排专员：驱动 feature tech plan 三段链（发起 → 确认 → 轮询取件）与飞书蓝图澄清链（取件 → 逐条作答 → 续取终稿） | 一次性无状态调用；待确认问题 / 待澄清题**原样带回**，绝不代用户作答；轮询超限如实返回 session_id 续跑钥匙 |
+| `friday-research` | 交付上下文调研专员：跨仓检索、项目上下文召回、历史交付查询，消化原始召回结果后返回带 ID 出处的证据摘要 | 只读工具白名单；证据里没有的不写；控制返回体积 |
+
+分发形态：包内 `agents/*.md` 为 canonical（Claude Code 格式，含 `tools:` 白名单）；装进 Cursor 时自动剥离 Claude 专属 frontmatter 键（`tools` / `color` / `effort` / `model`），工具约束由正文协议兜底。
+
+| Agent | 项目级 | 全局 |
+| --- | --- | --- |
+| Cursor | `.cursor/agents/` | `~/.cursor/agents/` |
+| Claude Code | `.claude/agents/` | `~/.claude/agents/` |
+
+Claude Code 插件形态经 `.claude-plugin/plugin.json` 的 `"agents"` 字段自动带上，无需单独安装。
+
 ## 安装
 
 **推荐顺序：先配 MCP 连接，再装 Skills。**
@@ -42,7 +60,7 @@ npx -y @friday-ai-codes/mcp setup
 npx @friday-ai-codes/skills
 ```
 
-向导会：展示渐变 banner → 选择安装范围（当前项目 / 全局）→ 自动嗅探本机 agent（Cursor / Claude Code / Codex / Gemini CLI / OpenCode）并默认勾选 → 把 8 个技能拷进各 agent 原生技能目录 → 检测 MCP 配置，未配置时直接接力拉起 `mcp setup`。
+向导会：展示渐变 banner → 选择安装范围（当前项目 / 全局）→ 自动嗅探本机 agent（Cursor / Claude Code / Codex / Gemini CLI / OpenCode）并默认勾选 → 把 8 个技能拷进各 agent 原生技能目录、把 2 个 subagent 装进 Cursor / Claude Code 原生 agents 目录 → 检测 MCP 配置，未配置时直接接力拉起 `mcp setup`。
 
 ### 非交互（脚本 / CI）
 
@@ -91,8 +109,8 @@ npx skills add friday-ai-codes/skills --skill '*' -g -y
 ## 本地验证
 
 ```bash
-node bin/friday-ai-skills.mjs list        # 应列出 8 个技能
-npm run pack:dry-run                       # 检查 npm tarball 内容
+node bin/friday-ai-skills.mjs list        # 应列出 8 个技能 + 2 个 subagent
+npm run pack:dry-run                       # 检查 npm tarball 内容（应含 agents/）
 bash hooks/session-start | head -1         # 合法 JSON 上下文注入
 ```
 

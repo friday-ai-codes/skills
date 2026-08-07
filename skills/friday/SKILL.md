@@ -84,6 +84,15 @@ npx -y @friday-ai-codes/mcp setup
 
 非项目成员 / 未绑项目 / 分支无法唯一定位 → 工具自动 fail-soft 跳过，绝不阻断编码。逐步编排与深挖工具（`search_project_context` / `grep_project` / `read_project_doc`）见 `friday-dev` 技能；Claude Code 插件形态下，召回与沉淀已由 `UserPromptSubmit` / `Stop` hooks 自动化。
 
+## Subagent 委托（宿主支持时优先）
+
+安装器会给 Cursor / Claude Code 装两个 Friday subagent。宿主里存在它们时，**优先委托而不是在主对话里裸调工具**——subagent 有独立上下文，轮询与海量召回结果不会污染主对话：
+
+- **`friday-plan`**（技术方案编排）：`friday-solution` 的三段链与 `friday-feishu` 的蓝图澄清链都可以整段委托。分工是固定的：subagent 负责发起、轮询、取件；**与用户的确认环节永远留在主对话**——subagent 会把待确认问题 / 待澄清题原样带回，你呈现给用户、拿到真实答复后，再带着 `session_id`（或 `blueprint_artifact_id`）+ 答复原文派它续跑。派单时必须写明：任务阶段（发起 / 续跑 / 蓝图取件）+ 对应输入。
+- **`friday-research`**（只读调研）：跨仓追接口、历史交付检索、编码开工前的项目上下文召回，丢给它拿回带 ID 出处的证据摘要即可。
+
+宿主没有 subagent 机制（Codex / Gemini CLI / OpenCode）时照常按各技能正文直接驱动工具，流程与护栏完全一致。
+
 ## Trace 纪律（所有技能通用）
 
 - 第一个成功的 Friday 工具响应会返回 `run_id`，整个工作流都要带着它。

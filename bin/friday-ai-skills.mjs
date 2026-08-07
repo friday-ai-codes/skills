@@ -19,8 +19,10 @@ import * as p from '@clack/prompts';
 import { AGENTS, agentById, detectAgents } from '../lib/agents.mjs';
 import {
   bundledSkills,
+  bundledSubagents,
   injectContextBootstrap,
   installSkillsForAgent,
+  installSubagentsForAgent,
   mcpConfigured,
 } from '../lib/installer.mjs';
 import { banner, pc } from '../lib/ui.mjs';
@@ -110,6 +112,14 @@ function runList() {
     console.log(`  ${pc.cyan(pc.bold(`/${skill.name}`))}`);
     console.log(`    ${pc.dim(skill.description)}\n`);
   }
+  const subagents = bundledSubagents(packageRoot);
+  if (subagents.length > 0) {
+    console.log(`${pc.bold(`打包 subagent（${subagents.length} 个，装进 Cursor / Claude Code 原生 agents 目录）`)}\n`);
+    for (const subagent of subagents) {
+      console.log(`  ${pc.magenta(pc.bold(subagent.name))}`);
+      console.log(`    ${pc.dim(subagent.description.slice(0, 120))}…\n`);
+    }
+  }
   return 0;
 }
 
@@ -123,6 +133,13 @@ function performInstall({ agents, project, bootstrap }) {
     results.push(installSkillsForAgent(packageRoot, agent, { project }));
   }
   const extras = [];
+  // Subagent 定义：仅 Cursor / Claude Code 有原生 agents 目录，其余 agent 自动跳过
+  for (const agent of agents) {
+    const sub = installSubagentsForAgent(packageRoot, agent, { project });
+    if (!sub.skipped && sub.installed.length > 0) {
+      extras.push(`${agent.label} subagent：${sub.installed.join('、')} → ${sub.targetDir}`);
+    }
+  }
   if (bootstrap) {
     for (const agent of agents) {
       const boot = injectContextBootstrap(agent, { project });
@@ -151,9 +168,13 @@ async function runWizard() {
   p.intro(pc.bgMagenta(pc.black(' Friday Skills 安装向导 ')));
 
   const skills = bundledSkills(packageRoot);
+  const subagents = bundledSubagents(packageRoot);
   p.note(
-    skills.map((skill) => `${pc.cyan(`/${skill.name}`)}`).join('\n'),
-    `将安装 ${skills.length} 个技能（始终整组安装）`,
+    [
+      ...skills.map((skill) => `${pc.cyan(`/${skill.name}`)}`),
+      ...subagents.map((subagent) => `${pc.magenta(subagent.name)} ${pc.dim('(subagent)')}`),
+    ].join('\n'),
+    `将安装 ${skills.length} 个技能 + ${subagents.length} 个 subagent（始终整组安装）`,
   );
 
   // 1) 安装范围

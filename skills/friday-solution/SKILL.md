@@ -31,6 +31,16 @@ get_feature_tech_plan     → 轮询直到 completed，拿完整方案
 
 设计上就是这样：即便仓库路由是高置信度，系统也一定会问一次。这不是缺陷，是产品约束。
 
+## Subagent 委托（Cursor / Claude Code 优先走这条）
+
+宿主里存在 `friday-plan` subagent 时，把发起与轮询整段委托给它，主对话只保留与用户的确认环节：
+
+1. **派发起单**：把 feature list 原文 / project_id / 分支名交给 `friday-plan`（阶段=发起）。它会调 `create_feature_tech_plan` 并把 `questions` + `session_id` 原样带回——它被禁止代答。
+2. **主对话做确认**：按下文「第二步」的方式把问题呈现给用户，拿到真实答复。
+3. **派续跑单**：`session_id` + 用户答复原文再交给 `friday-plan`（阶段=续跑）。它会提交确认并轮询到终态，带回完整方案 markdown 与全部 ID。
+
+没有 subagent 机制的宿主按下文三步直接驱动工具，流程与护栏完全一致。
+
 ## 第一步：发起
 
 三种取数源，选一个（优先级 `feature_list_text` > `project_id` > `branch_name`）：

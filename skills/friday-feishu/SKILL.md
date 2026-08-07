@@ -54,6 +54,8 @@ description: "当用户给出飞书项目（Feishu Project）工作项——需�
 - 仓库任务矩阵为空会阻塞执行：先带明确的 `repository_ids` 重跑，再交给阶段三。
 - 绝不暴露飞书插件 secret 或应用 secret——它们都在 Friday 服务端。
 
+**蓝图异步澄清**（服务端蓝图开关开启时）：`create_feishu_technical_plan` 会立即返回 `status="partial"` + `blueprint_artifact_id`，方案在后台编排。续取协议：轮询 `get_technical_blueprint(artifact_id)` → `pending_clarifications` 非空时把澄清题**原样呈现给用户**，拿到真实答复后逐条调 `answer_blueprint_clarification(thread_id, body)`（一次一题）→ 再续取直到终态，`markdown` 即完整蓝图（未确认时首行带「未经确认」水印，如实保留）。宿主有 `friday-plan` subagent 时，把「取件 + 作答 + 续取」整段委托给它，澄清题的用户确认环节留在主对话。
+
 ## 阶段三 — 多仓执行与回写
 
 前置：任务矩阵非空的 `technical_plan_id`（来自阶段二），复用同一个 `run_id`。
