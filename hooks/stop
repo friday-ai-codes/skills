@@ -11,15 +11,21 @@
 # 凭证解析与 user-prompt-submit 一致；脚本只提交 git 改动统计与提交标题，
 # 绝不拼接/上报凭证、密钥、token、个人敏感信息。
 # fail-soft：任何失败静默 exit 0，绝不阻断编码。
-# 关闭开关：FRIDAY_HOOKS_DISABLED=1 或 FRIDAY_STOP_WRITEBACK=0。
+# 关闭开关：FRIDAY_HOOKS_DISABLED=1 关闭全部；FRIDAY_STOP_WRITEBACK=0 只关闭项目记忆。
 
 set -u
 
 [ "${FRIDAY_HOOKS_DISABLED:-0}" = "1" ] && exit 0
-[ "${FRIDAY_STOP_WRITEBACK:-1}" = "0" ] && exit 0
 command -v python3 >/dev/null 2>&1 || exit 0
 
 stdin_json="$(cat 2>/dev/null || true)"
+hook_dir="$(CDPATH= cd -- "$(dirname -- "$0")" 2>/dev/null && pwd)"
+if [ -n "$hook_dir" ]; then
+  printf '%s' "$stdin_json" |
+    python3 "$hook_dir/lib/session_capture.py" submit claude_code >/dev/null 2>&1 || true
+fi
+
+[ "${FRIDAY_STOP_WRITEBACK:-1}" = "0" ] && exit 0
 
 exec python3 - "$stdin_json" <<'PY'
 import hashlib
@@ -118,7 +124,17 @@ req = urllib.request.Request(
     method="POST",
 )
 try:
-    urllib.request.urlopen(req, timeout=REPORT_TIMEOUT_SECONDS).read()
+    record_path = os.environ.get("FRIDAY_CAPTURE_HTTP_RECORD", "")
+    if record_path:
+        os.makedirs(os.path.dirname(record_path), mode=0o700, exist_ok=True)
+        descriptor = os.open(record_path, os.O_CREAT | os.O_APPEND | os.O_WRONLY, 0o600)
+        with os.fdopen(descriptor, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps({
+                "url": req.full_url,
+                "body": json.loads(payload.decode()),
+            }, ensure_ascii=False) + "\n")
+    else:
+        urllib.request.urlopen(req, timeout=REPORT_TIMEOUT_SECONDS).read()
 except Exception:
     fail_soft()
 
