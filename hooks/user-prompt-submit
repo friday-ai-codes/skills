@@ -20,9 +20,15 @@ set -u
 
 [ "${FRIDAY_HOOKS_DISABLED:-0}" = "1" ] && exit 0
 command -v python3 >/dev/null 2>&1 || exit 0
-command -v curl >/dev/null 2>&1 || exit 0
 
 stdin_json="$(cat 2>/dev/null || true)"
+hook_dir="$(CDPATH= cd -- "$(dirname -- "$0")" 2>/dev/null && pwd)"
+if [ -n "$hook_dir" ]; then
+  printf '%s' "$stdin_json" |
+    python3 "$hook_dir/lib/session_capture.py" cache claude_code >/dev/null 2>&1 || true
+fi
+
+command -v curl >/dev/null 2>&1 || exit 0
 
 exec python3 - "$stdin_json" <<'PY'
 import hashlib
