@@ -21,6 +21,7 @@ import {
   bundledSkills,
   bundledSubagents,
   injectContextBootstrap,
+  installCursorHooks,
   installSkillsForAgent,
   installSubagentsForAgent,
   mcpConfigured,
@@ -133,6 +134,15 @@ function performInstall({ agents, project, bootstrap }) {
     results.push(installSkillsForAgent(packageRoot, agent, { project }));
   }
   const extras = [];
+  for (const agent of agents) {
+    if (agent.id !== 'cursor') continue;
+    const hooks = installCursorHooks(packageRoot, { project });
+    if (hooks.warning) {
+      extras.push(`Cursor hooks：${hooks.warning}`);
+    } else {
+      extras.push(`Cursor hooks：已安装到 ${hooks.targetDir}，配置已合并 ${hooks.configPath}`);
+    }
+  }
   // Subagent 定义：仅 Cursor / Claude Code 有原生 agents 目录，其余 agent 自动跳过
   for (const agent of agents) {
     const sub = installSubagentsForAgent(packageRoot, agent, { project });
