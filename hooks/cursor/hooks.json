@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeSubmitPrompt": [
+      {
+        "command": ".cursor/hooks/friday-before-submit-prompt.sh",
+        "timeout": 15
+      }
+    ],
+    "afterAgentResponse": [
+      {
+        "command": ".cursor/hooks/friday-after-agent-response.sh",
+        "timeout": 15
+      }
+    ]
+  }
+}

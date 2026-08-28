@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -u
+
+[ "${FRIDAY_HOOKS_DISABLED:-0}" = "1" ] && exit 0
+command -v python3 >/dev/null 2>&1 || exit 0
+
+stdin_json="$(cat 2>/dev/null || true)"
+script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" 2>/dev/null && pwd)" || exit 0
+printf '%s' "$stdin_json" | python3 "$script_dir/../lib/session_capture.py" cache cursor \
+  >/dev/null 2>&1 || true
+printf '%s\n' '{"continue":true}'
+exit 0
