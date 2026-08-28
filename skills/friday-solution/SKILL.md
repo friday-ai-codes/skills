@@ -11,6 +11,63 @@ description: "由 feature list 生成技术方案：先判定每个功能点是�
 
 看不到 `friday` MCP 工具，或调用返回 401/403，引导用户运行 `npx -y @friday-ai-codes/mcp setup`（见 `friday` 技能「环境未就绪」一节）。保留首个响应的 `run_id`。
 
+## Canonical blueprint 优先级
+
+本技能的三段式链路只负责 feature list 的初始分类、路由与方案生成。只要响应或上游任务
+给出 `blueprint_artifact_id`，后续状态、正文和审批都以 Friday canonical blueprint 为
+唯一事实源，禁止继续把 legacy `session_id` 或宿主 Issue metadata 当作权威状态：
+
+1. `get_feishu_work_item_context` 返回的 legacy `project_id`/`space_id` 是 Space 身份；
+   fresh create 必须把稳定事件键传入 `idempotency_key`，并把响应中的
+   `blueprint_project_id` 原样传入同名参数绑定目标 Project；禁止拿 Space UUID 代替。
+2. 调 `get_technical_blueprint(artifact_id=...)`，核验返回的 `project_id` 与
+   `blueprint_project_id` 一致；重试复用同一键，禁止新建重复 artifact。
+3. `pending_clarifications` 非空时，把题目和选项原样交给用户；拿到真人答复后逐条调
+   `answer_blueprint_clarification`，再重新取件。
+4. `pending_review` 时必须原样展示 `markdown`，并保存刚读取的 `artifact_version_id` 与
+   `content_hash`。用户要求修改时调 `request_technical_blueprint_changes`，不得由 Agent
+   私改正文。
+5. 只有用户明确批准后，才能把同一版本/hash 传给 `approve_technical_blueprint`。
+   `stale` 表示版本已变，必须重新取件、重新展示、重新确认。
+6. 只有服务端返回 `confirmed` envelope 后才允许进入 Coding；Issue 状态为 `cancelled`
+   但 artifact 仍为非终态时按 orphan 处理并停止自动推进，不能伪造完成或批准。
+
+### 仓库确认的调研证据门禁
+
+`repo_confirmation` 只有在候选仓调研成功且证据可读时才是可以交给人类回答的确认题。若任一
+direct 候选的 `task_status` 为 `failed`，或者候选的 `responsibility` 为空、
+`fitness.reasons` 为空、`current_state_summary` 为空，必须标记为调研失败并停止在研究
+恢复门禁：
+
+- 不得发布或展示为可回答的 `repo_confirmation`，不得要求人类在无证据时盲选仓库。
+- 不得调用 `answer_blueprint_clarification`，也不得把路由分数或 `matched_domains`
+  冒充仓库现状证据。
+- 必须明确列出失败仓库与缺失字段，并重跑 repo_research；恢复成功后重新读取 artifact，
+  只有所有 direct 候选具备职责、适配理由和现状摘要，才可展示新的仓库确认题。
+- 研究恢复期间可以把活跃 Issue 标为 `blocked`，但不得批准、生成 Coding envelope 或派发
+  Coding。
+
+### Cancelled/orphan 只读不变量
+
+一旦宿主 Issue 为 `cancelled`，无论 Friday artifact 处于什么状态，Issue 状态与 Friday
+artifact 均为只读。只读取两侧状态、报告 orphan 并立即退出：
+
+- 禁止把 `cancelled` 改为 `blocked`、`in_progress` 或 `done`，也禁止任何等价的 Issue
+  状态迁移或复活操作。
+- 禁止调用 `create_feishu_technical_plan`。
+- 禁止调用 `answer_blueprint_clarification`。
+- 禁止调用 `approve_technical_blueprint`。
+- 禁止调用 `request_technical_blueprint_changes`。
+- 禁止调用 `start_repo_research`。
+- 禁止派发 Coding，也禁止创建或唤醒任何后续任务。
+
+只有宿主策略明确允许时，才能追加不改变状态的 reconciliation `metadata` 或评论；否则
+只在当前执行结果中报告 orphan 后退出。即使通用 Agent 规则要求把阻塞任务设为
+`blocked`，本只读不变量仍优先，必须保持 `cancelled`。
+
+这个优先级同样适用于 HTTP fallback。canonical 工具缺失时应报告运行时版本过旧并停止，
+不能退回三段式链路绕过人审或 Coding 门禁。
+
 ## 铁律：三段式不可跳过
 
 这条链路是**三个工具、三次调用**，没有一步到位的捷径：
