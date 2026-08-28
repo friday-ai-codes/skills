@@ -39,11 +39,12 @@ description: "本地开发上下文面：在本地仓库的分支上工作、需
 
 **深挖止损**：项目刚建或内容少时读半常为空——连续 2 次深挖（不同工具/不同 query）都为空就**停止深挖**，直接基于 `lookup` 返回的 `context` + 本地 git 历史回答，并说明「Friday 侧该项目记录还较少」。不要反复换 query 轰炸检索。
 
-## 收工沉淀（有实际改动 / 有价值结论时）
+## 收工沉淀（按职责分流）
 
-- 方案决策 / 经验教训：`report_project_knowledge(branch_name=<当前分支>, content=<提炼后的沉淀>)`。
-- 新增 / 改动 API：`report_project_state(branch_name=<当前分支>, apis=[{method, path, params?, status?}...])`。
-- 两者按分支自动定位项目；非成员 / 无法唯一定位时服务端 fail-soft 跳过，不阻断。**绝不上报任何凭证 / 密钥 / token / 个人敏感信息。**
+- **SessionCapture 原始问答**：每轮调用 `report_session_knowledge(question=<用户问题>, answer=<用户可见最终答案>)`。即使工作区是 **clean tree**（无 git 改动）也要收集问答；答案只取用户可见的最终答案，禁止上传 transcript、隐藏思维链、凭证 / 密钥 / token 或个人敏感信息。
+- **ProjectMemory 交付总结**：只有存在 git 交付变更时，才调用 `report_project_knowledge(branch_name=<当前分支>, content=<提炼后的沉淀>)` 记录方案决策 / 经验教训；保留既有 diff 门闩与服务端质量门槛。
+- **项目状态**：新增 / 改动 API 调用 `report_project_state(branch_name=<当前分支>, apis=[{method, path, params?, status?}...])`。
+- `report_session_knowledge` 与 `report_project_knowledge` 职责独立，不得合并为一个笼统的“记忆写回”。项目工具按分支自动定位项目；非成员 / 无法唯一定位时服务端 fail-soft 跳过，不阻断。
 
 ## 护栏
 

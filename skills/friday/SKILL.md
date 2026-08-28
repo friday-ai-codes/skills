@@ -80,7 +80,10 @@ npx -y @friday-ai-codes/mcp setup
    - `matched=true`：把返回的 `context`（项目记忆 / 需求 / 工件）当作本次编码的事实依据；记下 `project.id`，需要深挖再用 `search_project_context` / `grep_project` / `read_project_doc`。
    - `matched=false`：结合 `candidates` 人工确认项目，缺上下文不要臆测实现。
 2. **再编码**：在已加载的项目上下文约束下设计与实现，不与既有记忆 / 需求矛盾。
-3. **收工后沉淀**：有价值的方案决策 / 经验教训调 `report_project_knowledge(branch_name=<当前分支>, content=…)`；新增 / 改动的 API 用 `report_project_state(branch_name=<当前分支>, apis=[…])` 回写。两者都**按分支自动定位项目、无需 project_id**；内容经服务端脱敏 + 质量门槛 + 审计回滚兜底。**绝不上报任何凭证 / 密钥 / token / 个人敏感信息。**
+3. **收工后按职责分流**：
+   - 每轮问答用 `report_session_knowledge(question=…, answer=…)` 写入 SessionCapture；即使是 **clean tree**（无 git 改动）也要收集。`answer` 只取用户可见的最终答案，禁止上传 transcript、隐藏思维链、凭证 / 密钥 / token 或个人敏感信息。
+   - 只有存在 git 交付变更时，才用 `report_project_knowledge(branch_name=<当前分支>, content=…)` 沉淀项目方案决策 / 经验教训，并继续保留 diff 门闩与质量门槛；新增 / 改动的 API 用 `report_project_state(branch_name=<当前分支>, apis=[…])` 回写。
+   - `report_session_knowledge` 与 `report_project_knowledge` 职责独立，不得合并成一个笼统的“记忆写回”。项目工具按分支自动定位项目、无需 `project_id`；内容经服务端脱敏 + 质量门槛 + 审计回滚兜底。
 
 非项目成员 / 未绑项目 / 分支无法唯一定位 → 工具自动 fail-soft 跳过，绝不阻断编码。逐步编排与深挖工具（`search_project_context` / `grep_project` / `read_project_doc`）见 `friday-dev` 技能；Claude Code 插件形态下，召回与沉淀已由 `UserPromptSubmit` / `Stop` hooks 自动化。
 
