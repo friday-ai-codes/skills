@@ -32,7 +32,8 @@
   "scripts": {
     "list": "node bin/friday-ai-skills.mjs list",
     "install:skills": "node bin/friday-ai-skills.mjs install",
-    "pack:dry-run": "npm pack --dry-run"
+    "pack:dry-run": "npm pack --dry-run",
+    "test": "node --test lib/*.test.mjs"
   },
   "dependencies": {
     "@clack/prompts": "^0.11.0",
