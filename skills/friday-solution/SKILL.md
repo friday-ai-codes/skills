@@ -68,6 +68,26 @@ artifact 均为只读。只读取两侧状态、报告 orphan 并立即退出：
 这个优先级同样适用于 HTTP fallback。canonical 工具缺失时应报告运行时版本过旧并停止，
 不能退回三段式链路绕过人审或 Coding 门禁。
 
+#### 写时取消 preflight / CAS
+
+不得依赖 run 启动时或上一步缓存的 Issue 状态。每一次写操作都必须独立执行以下门禁：
+
+1. 紧邻写入前重新读取宿主 Issue 的 `status` 与 `revision`，把该 revision 作为
+   `expected_revision`；读取与写入之间不得执行其他操作。
+2. 下列动作全部算写操作：Issue 状态写入、Issue metadata 写入、Issue 评论写入，
+   以及 `create_feishu_technical_plan`、`answer_blueprint_clarification`、
+   `approve_technical_blueprint`、`request_technical_blueprint_changes`、
+   `start_repo_research`、legacy `create_feature_tech_plan` /
+   `confirm_feature_tech_plan` 和 Coding 派发。
+3. 若最新 `status=cancelled`，必须 fail-closed，立即按只读不变量退出；若 revision 已变化，
+   必须立即重新预检，禁止沿用旧快照。
+4. 宿主写接口支持 `expected_revision` 时必须使用 CAS；CAS 冲突后重新读取并重新判定，
+   绝不能把冲突当作成功或退回无条件写入。宿主仅提供非 CAS CLI 时，也必须执行紧邻写入的
+   重检，并且不得在重检与写入之间插入轮询、模型调用或其他副作用。
+
+这里的 Issue 评论写入指 Agent 主动调用评论接口；宿主自动投递 run 最终结果不属于 Agent
+可控制的 mutation，但最终结果在 cancelled 场景只能报告 orphan，不能宣称或触发状态推进。
+
 ## 铁律：三段式不可跳过
 
 这条链路是**三个工具、三次调用**，没有一步到位的捷径：
