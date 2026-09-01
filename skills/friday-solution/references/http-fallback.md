@@ -30,11 +30,27 @@ X-Friday-Run-ID: {工作流首个调用返回的 run_id，首个调用可省略}
 canonical 工具返回 404 或运行时根本没有这些工具时，应报告 MCP 版本过旧并停止；禁止
 退回 legacy 流程绕过版本 CAS、人审和 Coding 门禁。`get_feishu_work_item_context` 的
 legacy `project_id`/`space_id` 是 Space 身份；fresh create 必须用稳定事件键作为
-`idempotency_key`，并把响应中的 `blueprint_project_id` 原样传入同名参数绑定 Project，
-禁止拿 Space UUID 代替。`get_technical_blueprint.project_id` 只与该
-`blueprint_project_id` 比较。宿主 Issue 状态为
+`idempotency_key`。只有响应显式给出可信 `blueprint_project_id` 时才原样传入；
+服务端也只允许唯一、严格的 `ProjectWorkItemLink` 自动绑定。缺少可信 Project 时允许
+创建 Space-scoped unbound blueprint，禁止拿 Space UUID 代替、猜测同一 Space 的任意
+Project，并且不得仅因 Project 缺失而阻断。只有已绑定 Project 时，
+`get_technical_blueprint.project_id` 才与该 `blueprint_project_id` 比较。宿主 Issue 状态为
 `cancelled` 但 artifact 仍为非终态时属于 orphan，只允许对账/停止自动推进，不得代替
 人类批准。
+
+### Project、Space、Team 与仓库职责边界
+
+- Project 是可选业务身份，只能来自显式可信 UUID 或唯一严格工作项关联；Space 只定义当前
+  调用者可访问的仓库宇宙，绝不能把 Space 首个 Project 当身份，也不能把 Space 全仓当 Team。
+- Team 只能来自可信 work-item/team 字段、Repository facets 或已确认的项目仓库关联。Team
+  缺失或存在歧义时，必须在仓库路由前向人类澄清，禁止依赖 Space、项目相似度或历史名称猜测。
+- 路由上下文必须包含 PRD、feature list、测试 case、飞书字段、技术文档与显式仓库名，并保留
+  来源和置信度。显式仓、可信 Team 核心仓、项目确认仓与可信历史可突破 Top-N 候选预算；
+  Project/知识相似度只作软证据，不能形成 hard scope。
+- route 阶段只产 candidate，不得按路由置信度或 charter 命中预判 `direct`。最终
+  `direct`/`indirect`/`irrelevant` 必须由逐仓 research 决定；`direct` 必须给出唯一职责和
+  具体 file/API/model 拟修改位置。`unsuitable` 必须归为 `irrelevant` 并在人工确认前排除，
+  `partial` 必须明确按 `indirect` 或待裁决处理。
 
 ### 仓库确认的调研证据门禁
 

@@ -18,10 +18,13 @@ description: "由 feature list 生成技术方案：先判定每个功能点是�
 唯一事实源，禁止继续把 legacy `session_id` 或宿主 Issue metadata 当作权威状态：
 
 1. `get_feishu_work_item_context` 返回的 legacy `project_id`/`space_id` 是 Space 身份；
-   fresh create 必须把稳定事件键传入 `idempotency_key`，并把响应中的
-   `blueprint_project_id` 原样传入同名参数绑定目标 Project；禁止拿 Space UUID 代替。
-2. 调 `get_technical_blueprint(artifact_id=...)`，核验返回的 `project_id` 与
-   `blueprint_project_id` 一致；重试复用同一键，禁止新建重复 artifact。
+   fresh create 必须把稳定事件键传入 `idempotency_key`。只有响应显式给出可信的
+   `blueprint_project_id` 时才原样传入同名参数；服务端也只允许唯一、严格的
+   `ProjectWorkItemLink` 自动绑定。缺少可信 Project 时允许创建 Space-scoped unbound
+   blueprint，禁止猜测同一 Space 的任意 Project，也不得仅因 Project 缺失而阻断。
+2. 调 `get_technical_blueprint(artifact_id=...)`；仅当创建时绑定了
+   `blueprint_project_id`，才核验返回的 `project_id` 与它一致。重试复用同一键，禁止
+   新建重复 artifact。
 3. `pending_clarifications` 非空时，把题目和选项原样交给用户；拿到真人答复后逐条调
    `answer_blueprint_clarification`，再重新取件。
 4. `pending_review` 时必须原样展示 `markdown`，并保存刚读取的 `artifact_version_id` 与
@@ -31,6 +34,20 @@ description: "由 feature list 生成技术方案：先判定每个功能点是�
    `stale` 表示版本已变，必须重新取件、重新展示、重新确认。
 6. 只有服务端返回 `confirmed` envelope 后才允许进入 Coding；Issue 状态为 `cancelled`
    但 artifact 仍为非终态时按 orphan 处理并停止自动推进，不能伪造完成或批准。
+
+### Project、Space、Team 与仓库职责边界
+
+- Project 是可选业务身份，只能来自显式可信 UUID 或唯一严格工作项关联；Space 只定义当前
+  调用者可访问的仓库宇宙，绝不能把 Space 首个 Project 当身份，也不能把 Space 全仓当 Team。
+- Team 只能来自可信 work-item/team 字段、Repository facets 或已确认的项目仓库关联。Team
+  缺失或存在歧义时，必须在仓库路由前向人类澄清，禁止依赖 Space、项目相似度或历史名称猜测。
+- 路由上下文必须包含 PRD、feature list、测试 case、飞书字段、技术文档与显式仓库名，并保留
+  来源和置信度。显式仓、可信 Team 核心仓、项目确认仓与可信历史可突破 Top-N 候选预算；
+  Project/知识相似度只作软证据，不能形成 hard scope。
+- route 阶段只产 candidate，不得按路由置信度或 charter 命中预判 `direct`。最终
+  `direct`/`indirect`/`irrelevant` 必须由逐仓 research 决定；`direct` 必须给出唯一职责和
+  具体 file/API/model 拟修改位置。`unsuitable` 必须归为 `irrelevant` 并在人工确认前排除，
+  `partial` 必须明确按 `indirect` 或待裁决处理。
 
 ### 仓库确认的调研证据门禁
 
