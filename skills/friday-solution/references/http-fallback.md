@@ -16,7 +16,7 @@ X-Friday-Run-ID: {工作流首个调用返回的 run_id，首个调用可省略}
 
 | 工具 | 路径 | 核心请求字段 |
 | --- | --- | --- |
-| `create_feishu_technical_plan` | `/api/mcp/tools/create_feishu_technical_plan/` | `context_id`, `idempotency_key`, `blueprint_project_id` |
+| `create_feishu_technical_plan` | `/api/mcp/tools/create_feishu_technical_plan/` | `context_id`, `idempotency_key`, `blueprint_project_id`, `primary_team` |
 | `get_technical_blueprint` | `/api/mcp/tools/get_technical_blueprint/` | `artifact_id` |
 | `answer_blueprint_clarification` | `/api/mcp/tools/answer_blueprint_clarification/` | `thread_id`, `body`, `artifact_id`（可选校验） |
 | `request_technical_blueprint_changes` | `/api/mcp/tools/request_technical_blueprint_changes/` | `artifact_id`, `comment`, `rework_scope` |
@@ -34,7 +34,9 @@ legacy `project_id`/`space_id` 是 Space 身份；fresh create 必须用稳定�
 服务端也只允许唯一、严格的 `ProjectWorkItemLink` 自动绑定。缺少可信 Project 时允许
 创建 Space-scoped unbound blueprint，禁止拿 Space UUID 代替、猜测同一 Space 的任意
 Project，并且不得仅因 Project 缺失而阻断。只有已绑定 Project 时，
-`get_technical_blueprint.project_id` 才与该 `blueprint_project_id` 比较。宿主 Issue 状态为
+`get_technical_blueprint.project_id` 才与该 `blueprint_project_id` 比较。工作项快照有明确且
+唯一的 Team 字段时，把人类可读 `label` 原样传入 `primary_team`；缺失或歧义时留空并把服务端
+团队澄清题原样交给用户，禁止猜测。宿主 Issue 状态为
 `cancelled` 但 artifact 仍为非终态时属于 orphan，只允许对账/停止自动推进，不得代替
 人类批准。
 

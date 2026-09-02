@@ -21,7 +21,9 @@ description: "由 feature list 生成技术方案：先判定每个功能点是�
    fresh create 必须把稳定事件键传入 `idempotency_key`。只有响应显式给出可信的
    `blueprint_project_id` 时才原样传入同名参数；服务端也只允许唯一、严格的
    `ProjectWorkItemLink` 自动绑定。缺少可信 Project 时允许创建 Space-scoped unbound
-   blueprint，禁止猜测同一 Space 的任意 Project，也不得仅因 Project 缺失而阻断。
+   blueprint，禁止猜测同一 Space 的任意 Project，也不得仅因 Project 缺失而阻断。若工作项
+   快照存在明确且唯一的 Team 字段，把其人类可读 `label` 原样传入 `primary_team`；缺失或
+   歧义时不得猜测，留空并把服务端返回的团队澄清题原样交给用户。
 2. 调 `get_technical_blueprint(artifact_id=...)`；仅当创建时绑定了
    `blueprint_project_id`，才核验返回的 `project_id` 与它一致。重试复用同一键，禁止
    新建重复 artifact。
