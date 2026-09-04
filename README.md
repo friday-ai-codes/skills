@@ -52,7 +52,7 @@ Claude Code 插件形态经 `.claude-plugin/plugin.json` 的 `"agents"` 字段�
 npx -y @friday-ai-codes/mcp setup
 ```
 
-交互式中文向导：凭证问答 → 注册进本机 agent → 连通性测速（ms 高亮）→ 能力演示。访问令牌在 Friday Web 控制台「个人资料 → 访问令牌」创建（明文只显示一次）。
+交互式中文向导：凭证问答 → 注册进当前项目的 agent 配置 → 连通性测速（ms 高亮）→ 能力演示。访问令牌在 Friday Web 控制台「个人资料 → 访问令牌」创建（明文只显示一次）。
 
 ### 第二步 — 安装 Skills（交互式向导）
 
@@ -65,8 +65,8 @@ npx @friday-ai-codes/skills
 ### 非交互（脚本 / CI）
 
 ```bash
-npx @friday-ai-codes/skills install -y                          # 嗅探到的全部 agent，全局
-npx @friday-ai-codes/skills install --project --agent cursor    # 当前项目，仅 Cursor
+npx @friday-ai-codes/skills install -y                          # 嗅探到的全部 agent，当前项目
+npx @friday-ai-codes/skills install --agent cursor              # 当前项目，仅 Cursor
 npx @friday-ai-codes/skills install --agent claude-code -g      # 全局，仅 Claude Code
 npx @friday-ai-codes/skills install -y --no-bootstrap           # 只装技能，不注入指令文件
 npx @friday-ai-codes/skills list                                # 列出打包技能
@@ -100,11 +100,11 @@ npx skills add friday-ai-codes/skills --skill '*' -g -y
 | --- | --- | --- |
 | Cursor | `.cursor/rules/friday.mdc`（`alwaysApply`） | `~/.cursor/rules/friday.mdc`（注：文件方式偶有不生效，官方推荐 Settings → Rules） |
 | Claude Code | `CLAUDE.md` | `~/.claude/CLAUDE.md` |
-| Codex | `AGENTS.md` | `~/.codex/AGENTS.md` |
+| Codex | `AGENTS.md` + `.agents/skills/` | `~/.codex/AGENTS.md` + `~/.agents/skills/` |
 | Gemini CLI | `GEMINI.md` | `~/.gemini/GEMINI.md` |
 | OpenCode | `AGENTS.md`（与 Codex 共用，自动去重） | `~/.config/opencode/AGENTS.md` |
 
-项目级注入使用相对路径（文件会进 git，队友机器同样生效）。另外 Claude Code 插件形式自带 SessionStart hook，把 `friday` 入口技能全文注入每个会话。
+非交互安装默认写当前项目；只有显式传入 `--global`（或 `-g`）才写用户级目录。项目级注入使用相对路径（文件会进 git，队友机器同样生效）。另外 Claude Code 插件形式自带 SessionStart hook，把 `friday` 入口技能全文注入每个会话。
 
 ## 本地验证
 
