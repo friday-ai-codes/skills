@@ -1,6 +1,6 @@
 {
   "name": "@friday-ai-codes/skills",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Friday AI agent skills、subagent 定义与中文安装向导。自带安装器：嗅探本机 Cursor / Claude Code / Codex 等 agent，把技能装进各 agent 原生技能目录、把 friday-plan / friday-research subagent 装进 Cursor 与 Claude Code 原生 agents 目录，并接力完成 Friday MCP 配置。",
   "type": "module",
   "bin": {

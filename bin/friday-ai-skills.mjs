@@ -6,7 +6,7 @@
  * - 交互模式（TTY 默认）：中文向导，嗅探本机 agent，选 scope 选目标，
  *   装完接力 Friday MCP 配置（spawn `npx -y @friday-ai-codes/mcp setup`）。
  * - 非交互模式（带定向参数 / 非 TTY / CI）：--agent / --all-agents /
- *   --project / -g / -y，安装后打印下一步命令。
+ *   --project / -g / -y；默认当前项目，安装后打印下一步命令。
  */
 
 import { spawnSync } from 'node:child_process';
@@ -25,6 +25,7 @@ import {
   installSkillsForAgent,
   installSubagentsForAgent,
   mcpConfigured,
+  resolveProjectScope,
 } from '../lib/installer.mjs';
 import { banner, pc } from '../lib/ui.mjs';
 
@@ -47,8 +48,8 @@ ${pc.bold('选项（非交互安装）')}
   --agent <name>     目标 agent（${AGENTS.map((agent) => agent.id).join(' / ')}），可重复
   --all-agents       安装到本机嗅探到的全部 agent
   --project          装进当前项目（./.cursor/skills 等）
-  --global, -g       装进用户全局目录（~/.cursor/skills 等，默认）
-  --yes, -y          跳过向导：自动嗅探 agent，全局安装
+  --global, -g       明确装进用户全局目录（~/.cursor/skills 等）
+  --yes, -y          跳过向导：自动嗅探 agent，装进当前项目
   --no-bootstrap     不向各 agent 指令文件（CLAUDE.md / AGENTS.md / GEMINI.md / Cursor rule）注入 friday 引导
   --help, -h         显示本帮助
   --version, -v      显示版本
@@ -57,7 +58,7 @@ ${pc.dim('默认会把 friday 入口引导注入各 agent 的指令文件（mark
 ${pc.dim('Cursor → .cursor/rules/friday.mdc · Claude Code → CLAUDE.md · Codex / OpenCode → AGENTS.md · Gemini CLI → GEMINI.md')}
 
 ${pc.bold('示例')}
-  npx @friday-ai-codes/skills install --agent cursor --project
+  npx @friday-ai-codes/skills install --agent cursor
   npx @friday-ai-codes/skills install --all-agents -g
   npx @friday-ai-codes/skills install -y
 
@@ -263,7 +264,7 @@ async function runWizard() {
   p.log.step('交给 Friday MCP 配置向导…');
   const result = spawnSync(
     process.platform === 'win32' ? 'npx.cmd' : 'npx',
-    ['-y', '@friday-ai-codes/mcp', 'setup'],
+    ['-y', '@friday-ai-codes/mcp', 'setup', ...(project ? [] : ['--global'])],
     { stdio: 'inherit', cwd: process.cwd(), env: process.env },
   );
   if ((result.status ?? 1) === 0) {
@@ -285,7 +286,7 @@ function cancel() {
 
 function runNonInteractive(options) {
   console.log(banner(packageJson.version));
-  const project = options.project && !options.global;
+  const project = resolveProjectScope(options);
 
   let agents;
   if (options.agents.length > 0) {
@@ -350,6 +351,10 @@ async function main() {
   if (options.command !== 'install' && options.command !== 'add') {
     console.error(`未知命令: ${options.command}`);
     usage();
+    return 1;
+  }
+  if (options.project && options.global) {
+    console.error(`${pc.red('✗')} --project 与 --global 不能同时使用。`);
     return 1;
   }
 
