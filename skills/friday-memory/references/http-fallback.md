@@ -49,4 +49,4 @@ curl -sS -X POST "${FRIDAY_BASE_URL}/api/mcp/tools/search_delivery_knowledge/" \
 
 ## 错误
 
-错误格式为 `{ "error_code": "...", "detail": "..." }`。`authentication_failed` 表示 Access Token 无效——引导用户运行 `npx -y @friday-ai-codes/mcp setup`。
+错误格式为 `{ "error_code": "...", "detail": "..." }`。`authentication_failed` 表示 Access Token 无效——引导用户运行 `npx -y @friday-ai-codes/mcp@0.7.0 setup`。

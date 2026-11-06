@@ -9,7 +9,7 @@ description: "当用户要 Friday 操作或追踪某个远端已索引仓库时�
 
 ## 前置门槛
 
-看不到 `friday` MCP 工具，或调用返回 401/403，引导用户运行 `npx -y @friday-ai-codes/mcp setup`（见 `friday` 技能「环境未就绪」一节）。
+看不到 `friday` MCP 工具，或调用返回 401/403，引导用户运行 `npx -y @friday-ai-codes/mcp@0.7.0 setup`（见 `friday` 技能「环境未就绪」一节）。
 
 ## 模式判定
 
