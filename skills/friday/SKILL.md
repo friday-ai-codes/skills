@@ -51,10 +51,10 @@ Friday AI 把需求变成可追溯的合并请求（MR/PR）：仓库发现、Gr
 引导用户在终端运行一条命令（交互式中文向导：配置凭证 → 注册 MCP → 连通性测速 → 能力演示）：
 
 ```bash
-npx -y @friday-ai-codes/mcp setup
+npx -y @friday-ai-codes/mcp@0.7.0 setup
 ```
 
-没有 Access Token 时告诉用户：打开 Friday Web 控制台 →「个人资料 → 访问令牌」→ 创建令牌，明文只显示一次。配置完成后需重启 agent 会话，`friday` 工具才会出现。诊断已有配置用 `npx -y @friday-ai-codes/mcp doctor`。
+没有 Access Token 时告诉用户：打开 Friday Web 控制台 →「个人资料 → 访问令牌」→ 创建令牌，明文只显示一次。配置完成后需重启 agent 会话，`friday` 工具才会出现。诊断已有配置用 `npx -y @friday-ai-codes/mcp@0.7.0 doctor`。
 
 任何输出里都不得回显 Friday Access Token。
 
