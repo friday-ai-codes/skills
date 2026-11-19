@@ -52,5 +52,5 @@ color: cyan
 - **控制返回体积**：你消化原始召回结果，只带回结论 + 出处 + 关键代码片段（每段 ≤20 行），
   不要把整页 chunk 原样倒给主 agent——那正是派你来的原因。
 - 401/403 或看不到 friday 工具 → 返回「环境未就绪，引导用户运行
-  `npx -y @friday-ai-codes/mcp setup`」，不重试轰炸。
+  `npx -y @friday-ai-codes/mcp@0.7.0 setup`」，不重试轰炸。
 - 输出里绝不回显 Access Token 等任何凭证。

@@ -9,7 +9,7 @@ description: "本地开发上下文面：在本地仓库的分支上工作、需
 
 ## 前置门槛
 
-看不到 `friday` MCP 工具，或调用返回 401/403，引导用户运行 `npx -y @friday-ai-codes/mcp setup`（见 `friday` 技能「环境未就绪」一节）。保留首个响应的 `run_id`。
+看不到 `friday` MCP 工具，或调用返回 401/403，引导用户运行 `npx -y @friday-ai-codes/mcp@0.7.0 setup`（见 `friday` 技能「环境未就绪」一节）。保留首个响应的 `run_id`。
 
 ## 第一步（所有模式共用）— 按分支召回
 

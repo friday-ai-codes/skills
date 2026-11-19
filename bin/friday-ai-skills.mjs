@@ -4,7 +4,7 @@
  * Friday Skills 安装器 —— 自带安装能力，不依赖第三方 skills CLI。
  *
  * - 交互模式（TTY 默认）：中文向导，嗅探本机 agent，选 scope 选目标，
- *   装完接力 Friday MCP 配置（spawn `npx -y @friday-ai-codes/mcp setup`）。
+ *   装完接力 Friday MCP 配置（spawn `npx -y @friday-ai-codes/mcp@0.7.0 setup`）。
  * - 非交互模式（带定向参数 / 非 TTY / CI）：--agent / --all-agents /
  *   --project / -g / -y，安装后打印下一步命令。
  */
@@ -26,6 +26,7 @@ import {
   installSubagentsForAgent,
   mcpConfigured,
 } from '../lib/installer.mjs';
+import { MCP_PACKAGE_SPEC } from '../lib/mcp-package.mjs';
 import { banner, pc } from '../lib/ui.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -62,7 +63,7 @@ ${pc.bold('示例')}
   npx @friday-ai-codes/skills install -y
 
 ${pc.dim('技能安装完成后，用一条命令完成 Friday 连接配置（交互式中文向导）：')}
-  ${pc.cyan('npx -y @friday-ai-codes/mcp setup')}
+  ${pc.cyan(`npx -y ${MCP_PACKAGE_SPEC} setup`)}
 `);
 }
 
@@ -256,21 +257,21 @@ async function runWizard() {
     message: '还差最后一步：配置 Friday 连接（服务地址 + 访问令牌）。现在就配？',
   });
   if (p.isCancel(setupNow) || !setupNow) {
-    p.outro(`随时可以补配：${pc.cyan('npx -y @friday-ai-codes/mcp setup')}`);
+    p.outro(`随时可以补配：${pc.cyan(`npx -y ${MCP_PACKAGE_SPEC} setup`)}`);
     return 0;
   }
 
   p.log.step('交给 Friday MCP 配置向导…');
   const result = spawnSync(
     process.platform === 'win32' ? 'npx.cmd' : 'npx',
-    ['-y', '@friday-ai-codes/mcp', 'setup'],
+    ['-y', MCP_PACKAGE_SPEC, 'setup'],
     { stdio: 'inherit', cwd: process.cwd(), env: process.env },
   );
   if ((result.status ?? 1) === 0) {
     p.outro('全部就绪。重启 agent 会话后即可使用 /friday 。');
     return 0;
   }
-  p.outro(`MCP 配置未完成，可稍后重试：${pc.cyan('npx -y @friday-ai-codes/mcp setup')}`);
+  p.outro(`MCP 配置未完成，可稍后重试：${pc.cyan(`npx -y ${MCP_PACKAGE_SPEC} setup`)}`);
   return result.status ?? 1;
 }
 
@@ -324,7 +325,7 @@ function runNonInteractive(options) {
     console.log(`${pc.green('✓')} Friday 连接已配置。重启 agent 会话后即可使用 /friday 。`);
   } else {
     console.log(`${pc.bold('下一步')}：配置 Friday 连接（交互式中文向导）`);
-    console.log(`  ${pc.cyan('npx -y @friday-ai-codes/mcp setup')}`);
+    console.log(`  ${pc.cyan(`npx -y ${MCP_PACKAGE_SPEC} setup`)}`);
   }
   return 0;
 }

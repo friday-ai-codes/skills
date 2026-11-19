@@ -11,7 +11,7 @@ description: "由 feature list / PRD 出「仓库路由与落点判定矩阵」�
 
 ## 前置门槛
 
-看不到 `friday` MCP 工具，或调用返回 401/403，引导用户运行 `npx -y @friday-ai-codes/mcp setup`（见 `friday` 技能「环境未就绪」一节）。第一个成功响应返回的 `run_id` 全程保留，最终矩阵里要带上。
+看不到 `friday` MCP 工具，或调用返回 401/403，引导用户运行 `npx -y @friday-ai-codes/mcp@0.7.0 setup`（见 `friday` 技能「环境未就绪」一节）。第一个成功响应返回的 `run_id` 全程保留，最终矩阵里要带上。
 
 ## 铁律：纯 agent 驱动
 

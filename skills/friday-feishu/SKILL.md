@@ -9,7 +9,7 @@ description: "当用户给出飞书项目（Feishu Project）工作项——需�
 
 ## 前置门槛
 
-看不到 `friday` MCP 工具，或调用返回 401/403，引导用户运行 `npx -y @friday-ai-codes/mcp setup`（见 `friday` 技能「环境未就绪」一节）。此外：
+看不到 `friday` MCP 工具，或调用返回 401/403，引导用户运行 `npx -y @friday-ai-codes/mcp@0.7.0 setup`（见 `friday` 技能「环境未就绪」一节）。此外：
 
 - 读工作项需要飞书项目插件凭证已在 Friday 服务端配置；
 - 创建方案文档需要飞书 Docs 应用凭证和 `feishu_doc_folder_token`；

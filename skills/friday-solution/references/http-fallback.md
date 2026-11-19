@@ -165,7 +165,7 @@ curl -sS -X POST "${FRIDAY_BASE_URL}/api/mcp/tools/get_feature_tech_plan/" \
 
 | error_code | HTTP | 含义与处理 |
 | --- | --- | --- |
-| `authentication_failed` | 401 | Access Token 无效，引导运行 `npx -y @friday-ai-codes/mcp setup` |
+| `authentication_failed` | 401 | Access Token 无效，引导运行 `npx -y @friday-ai-codes/mcp@0.7.0 setup` |
 | `invalid_params` | 400 | 三个取数源一个都没给，或参数格式错 |
 | `branch_not_bound` | 400 | 分支未绑定项目，引导用户在项目工作台「关联分支」绑定 |
 | `empty_feature_list` | 400 | 未解析出功能点（项目未录 feature list，或文本无可识别结构） |

@@ -50,4 +50,4 @@ curl -sS -X POST "${FRIDAY_BASE_URL}/api/mcp/tools/lookup_project_by_branch/" \
 
 ## 错误
 
-错误格式为 `{ "error_code": "...", "detail": "..." }`。`authentication_failed` 表示 Access Token 无效——引导用户运行 `npx -y @friday-ai-codes/mcp setup`。`report_*` 返回 `accepted=false` / `applied=false` 是 fail-soft 预期行为（非成员 / 分支无法唯一定位 / 质量门槛未过），不要重试轰炸。
+错误格式为 `{ "error_code": "...", "detail": "..." }`。`authentication_failed` 表示 Access Token 无效——引导用户运行 `npx -y @friday-ai-codes/mcp@0.7.0 setup`。`report_*` 返回 `accepted=false` / `applied=false` 是 fail-soft 预期行为（非成员 / 分支无法唯一定位 / 质量门槛未过），不要重试轰炸。

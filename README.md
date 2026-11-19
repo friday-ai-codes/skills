@@ -49,7 +49,7 @@ Claude Code 插件形态经 `.claude-plugin/plugin.json` 的 `"agents"` 字段�
 ### 第一步 — 配置 Friday 连接
 
 ```bash
-npx -y @friday-ai-codes/mcp setup
+npx -y @friday-ai-codes/mcp@0.7.0 setup
 ```
 
 交互式中文向导：凭证问答 → 注册进本机 agent → 连通性测速（ms 高亮）→ 能力演示。访问令牌在 Friday Web 控制台「个人资料 → 访问令牌」创建（明文只显示一次）。

@@ -88,7 +88,7 @@ curl -sS -X POST "${FRIDAY_BASE_URL}/api/mcp/tools/report_project_knowledge/" \
 
 | error_code | HTTP | 含义与处理 |
 | --- | --- | --- |
-| `authentication_failed` | 401 | Access Token 无效或过期，引导运行 `npx -y @friday-ai-codes/mcp setup` |
+| `authentication_failed` | 401 | Access Token 无效或过期，引导运行 `npx -y @friday-ai-codes/mcp@0.7.0 setup` |
 | `invalid_params` | 400 | 必填参数缺失或格式错（如 `find_related_chunks` 三个定位参数一个都没给） |
 | `repository_not_indexed` | 400 | 仓库 / 分支尚未建立索引——**停下告知用户**去 Friday 完成索引，不要拿空检索下结论 |
 | `repository_not_found` | 404 | 仓库不存在或已删除，让用户在 Friday 控制台核对 |

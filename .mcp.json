@@ -2,7 +2,7 @@
   "mcpServers": {
     "friday": {
       "command": "npx",
-      "args": ["-y", "@friday-ai-codes/mcp"]
+      "args": ["-y", "@friday-ai-codes/mcp@0.7.0"]
     }
   }
 }
